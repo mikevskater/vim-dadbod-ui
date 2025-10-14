@@ -423,7 +423,7 @@ function! s:drawer.add_db(db) abort
     return a:db
   endif
 
-  " Render sections based on g:db_ui_drawer_sections configuration
+  " Render standard sections first (new query, buffers, saved queries)
   for section in g:db_ui_drawer_sections
     if section ==# 'new_query'
       call self._render_new_query_section(a:db)
@@ -432,9 +432,13 @@ function! s:drawer.add_db(db) abort
     elseif section ==# 'saved_queries'
       call self._render_saved_queries_section(a:db)
     elseif section ==# 'schemas'
+      " Legacy schema support - still render for backward compatibility
       call self._render_schemas_section(a:db)
     endif
   endfor
+  
+  " Then render database-level or object-level sections (Phase 5 addition)
+  call self.render_connection_content(a:db, 1)
 endfunction
 
 function! s:drawer.render_tables(tables, db, path, level, schema) abort
@@ -473,7 +477,17 @@ function! s:drawer.toggle_line(edit_action) abort
   endif
 
   if item.action ==? 'open'
-    return self.get_query().open(item, a:edit_action)
+    " Handle different open actions
+    if item.type ==# 'object_action'
+      return self.get_query().open_object_action(item, a:edit_action)
+    elseif item.type ==# 'table_helper'
+      return self.get_query().open_table_helper(item, a:edit_action)
+    elseif item.type ==# 'view_info'
+      " For now, just show a message for info items
+      return db_ui#notifications#info('Item: ' . get(item, 'full_name', get(item, 'name', 'Unknown')))
+    else
+      return self.get_query().open(item, a:edit_action)
+    endif
   endif
 
   let db = self.dbui.dbs[item.dbui_db_key_name]
@@ -483,10 +497,18 @@ function! s:drawer.toggle_line(edit_action) abort
     let tree = self.get_nested(db, item.type)
   endif
 
+  if empty(tree)
+    return
+  endif
+
   let tree.expanded = !tree.expanded
 
   if item.type ==? 'db'
     call self.toggle_db(db)
+  elseif item.type ==? 'databases'
+    call self.handle_databases_toggle(db)
+  elseif has_key(item, 'database')
+    call self.handle_database_item_toggle(db, item)
   endif
 
   return self.render()
@@ -754,4 +776,348 @@ endfunction
 
 function! s:sort_dbout(a1, a2)
   return str2nr(fnamemodify(a:a1, ':t:r')) - str2nr(fnamemodify(a:a2, ':t:r'))
+endfunction
+
+" =============================================================================
+" Database and Object Rendering (Phase 5)
+" =============================================================================
+
+" Helper function to check if database supports a feature
+function! s:drawer.supports_feature(db, feature) abort
+  if empty(a:db.scheme)
+    return 0
+  endif
+  let scheme = db_ui#schemas#get(a:db.scheme)
+  if empty(scheme)
+    return 0
+  endif
+  return db_ui#schemas#supports_feature(scheme, a:feature)
+endfunction
+
+" Render database list or single database objects
+function! s:drawer.render_connection_content(db, level) abort
+  " Skip if not showing database level
+  if !g:db_ui_show_database_level
+    return
+  endif
+  
+  " If URL has specific database, show objects directly
+  if a:db.has_database_in_url
+    if !empty(a:db.current_database)
+      call self.render_database_objects(a:db, a:db.current_database, a:level)
+    endif
+    return
+  endif
+  
+  " If database doesn't support database listing, show objects directly
+  if !self.supports_feature(a:db, 'databases')
+    let db_name = get(a:db.databases.list, 0, a:db.db_name)
+    if !empty(db_name)
+      call self.render_database_objects(a:db, db_name, a:level)
+    endif
+    return
+  endif
+  
+  " Show databases list
+  call self.render_databases_list(a:db, a:level)
+endfunction
+
+" Render list of databases
+function! s:drawer.render_databases_list(db, level) abort
+  let count = len(a:db.databases.list)
+  let display_name = 'Databases (' . count . ')'
+  
+  call self.add(display_name, 'toggle', 'databases',
+        \ self.get_toggle_icon('databases', a:db.databases),
+        \ a:db.key_name, a:level,
+        \ {'expanded': a:db.databases.expanded})
+  
+  if !a:db.databases.expanded
+    return
+  endif
+  
+  " Render each database
+  for db_name in a:db.databases.list
+    if !has_key(a:db.databases.items, db_name)
+      continue
+    endif
+    
+    let db_item = a:db.databases.items[db_name]
+    let display_name = db_name
+    
+    " Add size if available
+    if has_key(db_item, 'size_mb') && db_item.size_mb > 0
+      let display_name .= printf(' (%.2f MB)', db_item.size_mb)
+    endif
+    
+    call self.add(display_name, 'toggle',
+          \ 'databases->items->' . db_name,
+          \ self.get_toggle_icon('database', db_item),
+          \ a:db.key_name, a:level + 1,
+          \ {'expanded': db_item.expanded, 'database': db_name})
+    
+    if db_item.expanded
+      call self.render_database_objects(a:db, db_name, a:level + 2)
+    endif
+  endfor
+endfunction
+
+" Render objects within a database
+function! s:drawer.render_database_objects(db, database_name, level) abort
+  if !has_key(a:db.databases.items, a:database_name)
+    " Create database item if it doesn't exist
+    let a:db.databases.items[a:database_name] = 
+          \ self.dbui.create_database_item(a:database_name)
+  endif
+  
+  let db_item = a:db.databases.items[a:database_name]
+  
+  " Render each configured object section
+  for section_name in g:db_ui_object_sections
+    if !self.supports_feature(a:db, section_name)
+      continue
+    endif
+    
+    " Ensure section exists in db_item
+    if !has_key(db_item, section_name)
+      let db_item[section_name] = {'expanded': 0, 'list': [], 'items': {}}
+    endif
+    
+    call self.render_object_section(a:db, a:database_name, section_name, 
+          \ db_item[section_name], a:level)
+  endfor
+endfunction
+
+" Render a specific object section (tables, views, procedures, etc.)
+function! s:drawer.render_object_section(db, database_name, section_name, section_data, level) abort
+  let count = len(a:section_data.list)
+  
+  " Skip empty sections (except tables - always show)
+  if count == 0 && a:section_name !=# 'tables'
+    return
+  endif
+  
+  " Capitalize first letter for display
+  let display_name = toupper(a:section_name[0]) . a:section_name[1:] . ' (' . count . ')'
+  
+  let path = 'databases->items->' . a:database_name . '->' . a:section_name
+  
+  call self.add(display_name, 'toggle', path,
+        \ self.get_toggle_icon(a:section_name, a:section_data),
+        \ a:db.key_name, a:level,
+        \ {'expanded': a:section_data.expanded, 
+        \  'database': a:database_name,
+        \  'section': a:section_name})
+  
+  if !a:section_data.expanded
+    return
+  endif
+  
+  " Render objects in this section
+  call self.render_objects_list(a:db, a:database_name, a:section_name,
+        \ a:section_data, a:level + 1)
+endfunction
+
+" Render list of objects within a section
+function! s:drawer.render_objects_list(db, database_name, section_name, section_data, level) abort
+  for object_full_name in a:section_data.list
+    if !has_key(a:section_data.items, object_full_name)
+      continue
+    endif
+    
+    let obj_item = a:section_data.items[object_full_name]
+    
+    " Skip system objects if not configured to show them
+    if get(obj_item, 'is_system', 0) && !g:db_ui_show_system_objects
+      continue
+    endif
+    
+    " Apply system object prefix if needed
+    let display_name = db_ui#schemas#get_object_display_name(
+          \ object_full_name, get(obj_item, 'is_system', 0))
+    
+    " Get icon for this object type
+    let icon = get(g:db_ui_icons, a:section_name, '')
+    
+    let path = 'databases->items->' . a:database_name . '->' . 
+          \ a:section_name . '->items->' . object_full_name
+    
+    " Tables can be expandable if they have helpers
+    if a:section_name ==# 'tables'
+      let has_helpers = !empty(a:db.table_helpers)
+      if has_helpers
+        " Table with helpers - expandable
+        call self.add(display_name, 'toggle', path,
+              \ self.get_toggle_icon('table', obj_item),
+              \ a:db.key_name, a:level,
+              \ extend(copy(obj_item), {
+              \   'database': a:database_name,
+              \   'section': a:section_name
+              \ }))
+        
+        if obj_item.expanded
+          call self.render_table_helpers(a:db, a:database_name, obj_item, a:level + 1)
+        endif
+      else
+        " Table without helpers - simple item
+        call self.add(display_name, 'view_info', a:section_name,
+              \ icon, a:db.key_name, a:level,
+              \ extend(copy(obj_item), {
+              \   'database': a:database_name,
+              \   'section': a:section_name
+              \ }))
+      endif
+      
+    elseif a:section_name ==# 'procedures' || a:section_name ==# 'functions'
+      " Procedure/function with actions - expandable
+      call self.add(display_name, 'toggle', path,
+            \ self.get_toggle_icon(a:section_name, obj_item),
+            \ a:db.key_name, a:level,
+            \ extend(copy(obj_item), {
+            \   'database': a:database_name,
+            \   'section': a:section_name,
+            \   'object_type': a:section_name
+            \ }))
+      
+      if obj_item.expanded
+        call self.render_object_actions(a:db, a:database_name, obj_item, 
+              \ a:section_name, a:level + 1)
+      endif
+      
+    else
+      " Simple object (view, type, synonym) - non-expandable
+      call self.add(display_name, 'view_info', a:section_name,
+            \ icon, a:db.key_name, a:level,
+            \ extend(copy(obj_item), {
+            \   'database': a:database_name,
+            \   'section': a:section_name
+            \ }))
+    endif
+  endfor
+endfunction
+
+" Render table helper actions
+function! s:drawer.render_table_helpers(db, database_name, table_item, level) abort
+  for [helper_name, helper_query] in items(a:db.table_helpers)
+    call self.add(helper_name, 'open', 'table_helper',
+          \ g:db_ui_icons.tables, a:db.key_name, a:level,
+          \ {
+          \   'database': a:database_name,
+          \   'table': a:table_item.name,
+          \   'schema': a:table_item.schema,
+          \   'content': helper_query,
+          \   'helper_name': helper_name
+          \ })
+  endfor
+endfunction
+
+" Render object actions (for procedures and functions)
+function! s:drawer.render_object_actions(db, database_name, obj_item, object_type, level) abort
+  for action in g:db_ui_object_actions
+    let label = get(g:db_ui_object_action_labels, action, action)
+    
+    call self.add(label, 'open', 'object_action',
+          \ g:db_ui_icons.action, a:db.key_name, a:level,
+          \ {
+          \   'database': a:database_name,
+          \   'schema': a:obj_item.schema,
+          \   'object': a:obj_item.full_name,
+          \   'name': a:obj_item.name,
+          \   'action': action,
+          \   'object_type': a:object_type
+          \ })
+  endfor
+endfunction
+
+" =============================================================================
+" Toggle Handler Integration
+" =============================================================================
+
+" Handle toggle action with proper population
+function! s:drawer.handle_toggle(item) abort
+  let db = self.dbui.dbs[a:item.dbui_db_key_name]
+  
+  " Get the tree item
+  let tree = self.dbui.get_nested_item(db, a:item.type)
+  
+  if empty(tree)
+    return
+  endif
+  
+  " Toggle expansion state
+  let tree.expanded = !tree.expanded
+  
+  " Handle specific toggle types
+  if a:item.type ==? 'db'
+    call self.handle_db_toggle(db)
+  elseif a:item.type ==? 'databases'
+    call self.handle_databases_toggle(db)
+  elseif has_key(a:item, 'database')
+    call self.handle_database_item_toggle(db, a:item)
+  endif
+  
+  return 1
+endfunction
+
+" Handle database connection toggle
+function! s:drawer.handle_db_toggle(db) abort
+  if !a:db.expanded
+    return
+  endif
+  
+  " Connect to database
+  call self.dbui.connect(a:db)
+  
+  if empty(a:db.conn)
+    return
+  endif
+  
+  " Populate databases list
+  call self.dbui.populate_databases(a:db)
+endfunction
+
+" Handle databases section toggle
+function! s:drawer.handle_databases_toggle(db) abort
+  if !a:db.databases.expanded
+    return
+  endif
+  
+  " Populate if not already populated
+  if empty(a:db.databases.list)
+    call db_ui#notifications#info('Loading databases...')
+    call self.dbui.populate_databases(a:db)
+    call db_ui#notifications#info('Loaded ' . len(a:db.databases.list) . ' databases')
+  endif
+endfunction
+
+" Handle individual database toggle
+function! s:drawer.handle_database_item_toggle(db, item) abort
+  if !has_key(a:item, 'database')
+    return
+  endif
+  
+  if !has_key(a:db.databases.items, a:item.database)
+    return
+  endif
+  
+  let db_item = a:db.databases.items[a:item.database]
+  
+  if !db_item.expanded
+    return
+  endif
+  
+  " Check if we need to populate objects
+  let needs_population = 1
+  for section in g:db_ui_object_sections
+    if has_key(db_item, section) && !empty(get(db_item[section], 'list', []))
+      let needs_population = 0
+      break
+    endif
+  endfor
+  
+  if needs_population
+    call db_ui#notifications#info('Loading objects for database ' . a:item.database . '...')
+    call self.dbui.populate_database_objects(a:db, a:item.database)
+    call db_ui#notifications#info('Loaded objects for ' . a:item.database)
+  endif
 endfunction

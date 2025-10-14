@@ -430,3 +430,204 @@ function s:print_query_time() abort
   let s:query_info.last_query_time = split(reltimestr(reltime(s:query_info.last_query_start_time)))[0]
   call db_ui#notifications#info('Done after '.s:query_info.last_query_time.' sec.')
 endfunction
+
+" =============================================================================
+" Phase 5: Object Action Handlers
+" =============================================================================
+
+" Open an object action (view definition, script as CREATE, etc.)
+function! s:query.open_object_action(item, edit_action) abort
+  let db = self.drawer.dbui.dbs[a:item.dbui_db_key_name]
+  
+  " Generate buffer name for this action
+  let buffer_name = self.generate_buffer_name(db, {
+        \ 'schema': a:item.schema,
+        \ 'table': a:item.name,
+        \ 'label': a:item.action,
+        \ 'filetype': db.filetype
+        \ })
+  
+  " Generate content for the action
+  let content = self.generate_object_action_content(db, a:item)
+  
+  " Open the buffer with generated content
+  call self.open_buffer(db, buffer_name, a:edit_action, {
+        \ 'content': content,
+        \ 'database': get(a:item, 'database', ''),
+        \ 'object_type': get(a:item, 'object_type', ''),
+        \ 'existing_content': 1
+        \ })
+  
+  " Set the content
+  if !empty(content)
+    silent 1,$delete _
+    call setline(1, split(content, "\n"))
+  endif
+endfunction
+
+" Generate content for an object action
+function! s:query.generate_object_action_content(db, item) abort
+  let content = ''
+  let scheme = db_ui#schemas#get(a:db.scheme)
+  
+  " Add USE statement if configured and supported
+  if g:db_ui_add_use_statement && has_key(scheme, 'use_statement_template')
+    let database = get(a:item, 'database', a:db.current_database)
+    if !empty(database)
+      let use_stmt = substitute(scheme.use_statement_template, 
+            \ '{database}', database, 'g')
+      let content .= use_stmt
+    endif
+  endif
+  
+  " Generate action-specific content
+  if a:item.action ==# 'view_definition'
+    let content .= self.get_object_definition(a:db, a:item)
+    
+  elseif a:item.action ==# 'script_create'
+    let content .= self.generate_create_script(a:db, a:item)
+    
+  elseif a:item.action ==# 'script_alter'
+    let def = self.get_object_definition(a:db, a:item)
+    let content .= substitute(def, '\c^\s*CREATE', 'ALTER', '')
+    
+  elseif a:item.action ==# 'script_drop'
+    let content .= self.generate_drop_script(a:db, a:item)
+    
+  elseif a:item.action ==# 'script_execute'
+    let content .= self.generate_execute_script(a:db, a:item)
+  endif
+  
+  return content
+endfunction
+
+" Get object definition from database
+function! s:query.get_object_definition(db, item) abort
+  let scheme = db_ui#schemas#get(a:db.scheme)
+  let database = get(a:item, 'database', a:db.current_database)
+  
+  " Use schema helper if available
+  if has_key(scheme, 'get_object_definition')
+    return join(scheme.get_object_definition(
+          \ a:db, database, a:item.schema, a:item.name, 
+          \ get(a:item, 'object_type', '')), "\n")
+  endif
+  
+  " Default implementation
+  let query = get(scheme, 'object_definition_query', '')
+  
+  if empty(query)
+    return '-- Object definition not available for this database type'
+  endif
+  
+  let query = substitute(query, '{schema}', a:item.schema, 'g')
+  let query = substitute(query, '{object}', a:item.name, 'g')
+  
+  try
+    let results = db_ui#schemas#query_in_database(
+          \ a:db, scheme, database, query)
+    
+    if empty(results)
+      return '-- Definition not found'
+    endif
+    
+    return join(results, "\n")
+  catch /.*/
+    return '-- Error retrieving definition: ' . v:exception
+  endtry
+endfunction
+
+" Generate CREATE script for an object
+function! s:query.generate_create_script(db, item) abort
+  " Get definition which should already be CREATE script
+  return self.get_object_definition(a:db, a:item)
+endfunction
+
+" Generate DROP script for an object
+function! s:query.generate_drop_script(db, item) abort
+  let obj_type = get(a:item, 'object_type', 'procedures') ==# 'procedures' ? 'PROCEDURE' : 
+        \ get(a:item, 'object_type', 'functions') ==# 'functions' ? 'FUNCTION' :
+        \ get(a:item, 'object_type', 'views') ==# 'views' ? 'VIEW' :
+        \ get(a:item, 'object_type', 'types') ==# 'types' ? 'TYPE' :
+        \ get(a:item, 'object_type', 'synonyms') ==# 'synonyms' ? 'SYNONYM' : 'OBJECT'
+  
+  let scheme = db_ui#schemas#get(a:db.scheme)
+  
+  if a:db.scheme ==# 'sqlserver'
+    return printf("DROP %s [%s].[%s];\nGO\n", 
+          \ obj_type, a:item.schema, a:item.name)
+  elseif a:db.scheme ==# 'mysql' || a:db.scheme ==# 'mariadb'
+    return printf("DROP %s `%s`.`%s`;\n", 
+          \ obj_type, a:item.schema, a:item.name)
+  else
+    return printf("DROP %s %s.%s;\n", 
+          \ obj_type, a:item.schema, a:item.name)
+  endif
+endfunction
+
+" Generate EXECUTE script for a procedure/function
+function! s:query.generate_execute_script(db, item) abort
+  let scheme = db_ui#schemas#get(a:db.scheme)
+  
+  " Simple fallback for databases without parameter introspection
+  if a:db.scheme ==# 'sqlserver'
+    return printf("EXEC [%s].[%s]\n    @param1 = <value>;\nGO\n",
+          \ a:item.schema, a:item.name)
+  elseif a:db.scheme ==# 'mysql' || a:db.scheme ==# 'mariadb'
+    return printf("CALL `%s`.`%s`(?);\n", a:item.schema, a:item.name)
+  else
+    return printf("-- Execute script not implemented for %s\n", a:db.scheme)
+  endif
+endfunction
+
+" Open a table helper query
+function! s:query.open_table_helper(item, edit_action) abort
+  let db = self.drawer.dbui.dbs[a:item.dbui_db_key_name]
+  
+  let buffer_name = self.generate_buffer_name(db, {
+        \ 'schema': get(a:item, 'schema', ''),
+        \ 'table': get(a:item, 'table', ''),
+        \ 'label': get(a:item, 'helper_name', 'helper'),
+        \ 'filetype': db.filetype
+        \ })
+  
+  " Process helper query template
+  let content = get(a:item, 'content', '')
+  let schema = get(a:item, 'schema', '')
+  let database = get(a:item, 'database', a:db.current_database)
+  
+  " Add USE statement if needed
+  let scheme = db_ui#schemas#get(a:db.scheme)
+  if g:db_ui_add_use_statement && has_key(scheme, 'use_statement_template') && !empty(database)
+    let use_stmt = substitute(scheme.use_statement_template,
+          \ '{database}', database, 'g')
+    let content = use_stmt . content
+  endif
+  
+  " Substitute placeholders
+  let optional_schema = schema ==? a:db.default_scheme ? '' : schema
+  if !empty(optional_schema) && a:db.quote
+    let optional_schema = '"'.optional_schema.'".'
+  elseif !empty(optional_schema)
+    let optional_schema = optional_schema.'.'
+  endif
+  
+  let content = substitute(content, '{table}', get(a:item, 'table', ''), 'g')
+  let content = substitute(content, '{optional_schema}', optional_schema, 'g')
+  let content = substitute(content, '{schema}', schema, 'g')
+  let content = substitute(content, '{database}', database, 'g')
+  
+  call self.open_buffer(db, buffer_name, a:edit_action, {
+        \ 'content': content,
+        \ 'database': database,
+        \ 'table': get(a:item, 'table', ''),
+        \ 'schema': schema,
+        \ 'existing_content': 1
+        \ })
+  
+  " Set the content
+  if !empty(content)
+    silent 1,$delete _
+    call setline(1, split(content, "\n"))
+  endif
+endfunction
