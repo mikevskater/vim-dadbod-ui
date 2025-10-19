@@ -35,6 +35,17 @@ let g:db_ui_bind_param_pattern = get(g: , 'db_ui_bind_param_pattern', ':\w\+')
 let g:db_ui_is_oracle_legacy = get(g:, 'db_ui_is_oracle_legacy', 0)
 let g:db_ui_drawer_sections = get(g:, 'db_ui_drawer_sections', ['new_query', 'buffers', 'saved_queries', 'schemas'])
 
+" SSMS-style configuration options
+let g:db_ui_use_ssms_style = get(g:, 'db_ui_use_ssms_style', 0)
+let g:db_ui_ssms_object_types = get(g:, 'db_ui_ssms_object_types', ['tables', 'views', 'procedures', 'functions'])
+let g:db_ui_show_schema_prefix = get(g:, 'db_ui_show_schema_prefix', 1)
+let g:db_ui_ssms_show_dependencies = get(g:, 'db_ui_ssms_show_dependencies', 1)
+let g:db_ui_hide_system_databases = get(g:, 'db_ui_hide_system_databases', 1)
+let g:db_ui_ssms_show_columns = get(g:, 'db_ui_ssms_show_columns', 1)
+let g:db_ui_ssms_show_indexes = get(g:, 'db_ui_ssms_show_indexes', 1)
+let g:db_ui_ssms_show_constraints = get(g:, 'db_ui_ssms_show_constraints', 1)
+let g:db_ui_ssms_show_keys = get(g:, 'db_ui_ssms_show_keys', 1)
+
 let s:dbui_icons = get(g:, 'db_ui_icons', {})
 let s:expanded_icon = get(s:dbui_icons, 'expanded', '▾')
 let s:collapsed_icon = get(s:dbui_icons, 'collapsed', '▸')
@@ -81,6 +92,20 @@ let g:db_ui_icons = {
       \ 'add_connection': '[+]',
       \ 'connection_ok': '✓',
       \ 'connection_error': '✕',
+      \ 'database': 'DB',
+      \ 'view': 'V',
+      \ 'procedure': 'P',
+      \ 'function': 'F',
+      \ 'action_select': 'S',
+      \ 'action_exec': 'E',
+      \ 'action_alter': 'A',
+      \ 'action_drop': 'D',
+      \ 'action_dependencies': 'Dep',
+      \ 'columns': 'Col',
+      \ 'indexes': 'Idx',
+      \ 'keys': 'Key',
+      \ 'constraints': 'Con',
+      \ 'parameters': 'Par',
       \ }
 
 if g:db_ui_use_nerd_fonts
@@ -110,6 +135,20 @@ if g:db_ui_use_nerd_fonts
         \ 'add_connection': '  󰆺',
         \ 'connection_ok': '✓',
         \ 'connection_error': '✕',
+        \ 'database': '󰆼',
+        \ 'view': '󰈙',
+        \ 'procedure': '󰊕',
+        \ 'function': '󰡱',
+        \ 'action_select': '',
+        \ 'action_exec': '',
+        \ 'action_alter': '',
+        \ 'action_drop': '',
+        \ 'action_dependencies': '󰘦',
+        \ 'columns': '',
+        \ 'indexes': '',
+        \ 'keys': '',
+        \ 'constraints': '',
+        \ 'parameters': '',
         \ }
 endif
 

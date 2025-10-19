@@ -14,6 +14,7 @@ vim-dadbod-ui			    *vim-dadbod-ui*
   4.1 Through environment variables 	    |vim-dadbod-ui-connections-env|
   4.2 Via `g:db` and `g:dbs` global variable|vim-dadbod-ui-connections-g:dbs|
   4.3 Using `DBUIAddConnection` comand 	    |vim-dadbod-ui-connections-add|
+  4.4 SSMS-Style Server-Level Connections   |vim-dadbod-ui-connections-ssms|
 5. Mappings				    |vim-dadbod-ui-mappings|
 6. Table helpers 		   	    |vim-dadbod-ui-table-helpers|
 7. Bind parameters 		   	    |vim-dadbod-ui-bind-parameters|
@@ -236,6 +237,51 @@ be saved in a `connections.json` file in |g:db_ui_save_location| folder. These
 connections will be available from everywhere. If you want to delete certain
 connection, open up DBUI drawer and press `d` (|<Plug>(DBUI_DeleteLine|) on
 the connection you want to delete.
+
+==============================================================================
+4.4 SSMS-Style Server-Level Connections	*vim-dadbod-ui-connections-ssms*
+
+When |g:db_ui_use_ssms_style| is enabled, you can connect to servers without
+specifying a database in the connection URL. This enables SSMS-style browsing
+where you can see all databases on the server, with expandable object types
+under each database.
+
+Server-level connection examples:
+>
+  " VimScript
+  let g:db_ui_use_ssms_style = 1
+  let g:dbs = {
+  \ 'my_sql_server': 'sqlserver://localhost',
+  \ 'my_postgres': 'postgresql://localhost:5432',
+  \ 'my_mysql': 'mysql://localhost:3306'
+  \ }
+
+  " Lua (Neovim)
+  vim.g.db_ui_use_ssms_style = 1
+  vim.g.dbs = {
+    { name = 'my_sql_server', url = 'sqlserver://localhost' },
+    { name = 'my_postgres', url = 'postgresql://localhost:5432' },
+    { name = 'my_mysql', url = 'mysql://localhost:3306' },
+  }
+<
+
+Database-level connections (traditional mode) continue to work even with
+SSMS-style enabled:
+>
+  let g:dbs = {
+  \ 'specific_db': 'sqlserver://localhost/MyDatabase'
+  \ }
+<
+
+With SSMS-style enabled, expanding a server connection will show:
+- Databases (list of all databases on the server)
+  - Each database expands to show:
+    - TABLES (with [schema].[tablename] format)
+    - VIEWS
+    - PROCEDURES
+    - FUNCTIONS
+
+Each object type shows appropriate actions and structural information.
 
 ==============================================================================
 
@@ -898,6 +944,79 @@ g:db_ui_default_query (DEPRECATED)
 		Default value: `SELECT * from "{table}" LIMIT 200;`
 
 ==============================================================================
+
+					      *g:db_ui_use_ssms_style*
+g:db_ui_use_ssms_style
+		Enable SSMS-style server-level connections. When enabled,
+		connections without a database in the URL will show a list
+		of databases on the server, with expandable object types
+		(TABLES, VIEWS, PROCEDURES, FUNCTIONS) under each database.
+
+		When disabled (default), the plugin works in the traditional
+		database-level mode.
+
+		Default value: `0`
+
+					      *g:db_ui_ssms_object_types*
+g:db_ui_ssms_object_types
+		List of object types to show in SSMS-style mode.
+		Available types: 'tables', 'views', 'procedures', 'functions'
+
+		Example: Only show tables and views:
+>
+		let g:db_ui_ssms_object_types = ['tables', 'views']
+<
+		Default value: `['tables', 'views', 'procedures', 'functions']`
+
+					      *g:db_ui_show_schema_prefix*
+g:db_ui_show_schema_prefix
+		When enabled, shows object names in [schema].[name] format
+		in SSMS-style mode.
+
+		Default value: `1`
+
+					      *g:db_ui_ssms_show_dependencies*
+g:db_ui_ssms_show_dependencies
+		When enabled, shows DEPENDENCIES action for objects in
+		SSMS-style mode. This action generates a query showing
+		object dependencies.
+
+		Default value: `1`
+
+					      *g:db_ui_hide_system_databases*
+g:db_ui_hide_system_databases
+		When enabled, hides system databases (master, msdb, etc. for
+		SQL Server) from the database list in SSMS-style mode.
+
+		Default value: `1`
+
+					      *g:db_ui_ssms_show_columns*
+g:db_ui_ssms_show_columns
+		When enabled, shows Columns structural info for tables and
+		views in SSMS-style mode.
+
+		Default value: `1`
+
+					      *g:db_ui_ssms_show_indexes*
+g:db_ui_ssms_show_indexes
+		When enabled, shows Indexes structural info for tables in
+		SSMS-style mode.
+
+		Default value: `1`
+
+					      *g:db_ui_ssms_show_constraints*
+g:db_ui_ssms_show_constraints
+		When enabled, shows Constraints structural info for tables
+		in SSMS-style mode.
+
+		Default value: `1`
+
+					      *g:db_ui_ssms_show_keys*
+g:db_ui_ssms_show_keys
+		When enabled, shows Keys (Primary Keys and Foreign Keys)
+		structural info for tables in SSMS-style mode.
+
+		Default value: `1`
 
 9. Functions					*vim-dadbod-ui-functions*
 
