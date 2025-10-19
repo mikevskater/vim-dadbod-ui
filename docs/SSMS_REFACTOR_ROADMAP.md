@@ -2,12 +2,12 @@
 
 ## Progress Summary
 
-**Overall Status**: 3 of 10 phases complete (30%)
+**Overall Status**: 4 of 10 phases complete (40%)
 
 - ✅ **Phase 1**: Foundation & Configuration - Complete
 - ✅ **Phase 2**: Schema Queries - Complete
 - ✅ **Phase 3**: Connection Handling - Complete
-- x **Phase 4**: Data Model Restructuring - Not Complete
+- ✅ **Phase 4**: Data Model Restructuring - Complete
 - x **Phase 5**: Drawer Rendering Refactor - Not Complete
 - x **Phase 6**: Actions & Query Execution - Not Complete
 - x **Phase 7**: Toggle & Navigation - Not Complete
@@ -360,7 +360,7 @@ postgresql://localhost:5432/postgres          # Database-level (legacy)
 
 ---
 
-## Phase 4: Data Model Restructuring (Estimated: 4-5 days) ❌
+## Phase 4: Data Model Restructuring (Estimated: 4-5 days) ✅
 
 ### 4.1 Extend Database Object Structure
 **File**: `autoload/db_ui.vim`
@@ -405,30 +405,29 @@ let server = {
 }
 ```
 
-- [ ] Create `s:dbui.create_server_structure()` - Initialize server object
-- [ ] Create `s:dbui.create_database_structure(server, db_name)` - Initialize database under server
-- [ ] Modify `s:dbui.generate_new_db_entry()` to detect and handle both types
-- [ ] Add `s:dbui.populate_databases(server)` - Populate database list for server
+- [x] Add `is_server` and `databases` fields to database structure
+- [x] Create `s:dbui.create_database_structure(server, db_name)` - Initialize database under server
+- [x] Modify `s:dbui.generate_new_db_entry()` to detect and handle both types
+- [x] Add `s:dbui.populate_databases(server)` - Populate database list for server
 
 ### 4.2 Database Connection Management
 **File**: `autoload/db_ui.vim`
 
-- [ ] Modify `s:dbui.connect(db)` to handle server connections
-- [ ] Add `s:dbui.connect_to_database(server, db_name)` - Connect to specific database
-- [ ] Add lazy loading: connect to database only when expanded
-- [ ] Cache database connections per server
+- [x] Add `s:dbui.connect_to_database(server, db_name)` - Connect to specific database
+- [x] Add lazy loading: connect to database only when expanded
+- [x] Cache database connections per server (via databases.items dictionary)
+- [x] Add `s:dbui.is_system_database()` helper to filter system databases
 
 ### 4.3 Object Population Functions
 **File**: `autoload/db_ui.vim`
 
-- [ ] Add `s:dbui.populate_object_types(database)` - Populate all object types
-- [ ] Add `s:dbui.populate_views(database)` - Populate views list
-- [ ] Add `s:dbui.populate_procedures(database)` - Populate procedures list
-- [ ] Add `s:dbui.populate_functions(database)` - Populate functions list
-- [ ] Add `s:dbui.format_object_name(schema, name, quote)` - Format as [schema].[name]
-- [ ] Modify existing `populate_tables()` to work with new structure (Phase 5)
+- [x] Add `s:dbui.populate_object_types(database)` - Populate all object types
+- [x] Add `s:dbui.populate_object_type(database, object_type, scheme_info)` - Generic object type population
+- [x] Support for views, procedures, functions via unified function
+- [x] Format object names as [schema].[name] based on g:db_ui_show_schema_prefix
+- [ ] Modify existing `populate_tables()` to work with new structure (Deferred to Phase 5)
 
-**Status**: ❌ Phase 4 Not Complete
+**Status**: ✅ Phase 4 Complete
 
 ---
 

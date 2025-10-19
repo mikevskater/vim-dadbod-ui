@@ -259,10 +259,18 @@ function! s:dbui.generate_new_db_entry(db) abort
         \ 'schema_support': 0,
         \ 'quote': 0,
         \ 'default_scheme': '',
-        \ 'filetype': ''
+        \ 'filetype': '',
+        \ 'is_server': 0,
+        \ 'databases': {'expanded': 0, 'items': {}, 'list': []},
         \ }
 
   call self.populate_schema_info(db)
+
+  " Check if this is a server-level connection
+  if self.is_server_connection(db)
+    let db.is_server = 1
+  endif
+
   return db
 endfunction
 
@@ -475,6 +483,187 @@ function! s:dbui.populate_schema_info(db) abort
   if a:db.filetype ==? 'js'
     let a:db.filetype = 'javascript'
   endif
+endfunction
+
+" SSMS-style server and database population functions
+function! s:dbui.create_database_structure(server, db_name) abort
+  let db_url = self.build_database_url(a:server.url, a:db_name)
+  let save_path = ''
+  if !empty(a:server.save_path)
+    let save_path = printf('%s/%s', a:server.save_path, a:db_name)
+  endif
+
+  let database = {
+        \ 'name': a:db_name,
+        \ 'url': db_url,
+        \ 'conn': '',
+        \ 'conn_error': '',
+        \ 'conn_tried': 0,
+        \ 'expanded': 0,
+        \ 'scheme': a:server.scheme,
+        \ 'quote': a:server.quote,
+        \ 'default_scheme': a:server.default_scheme,
+        \ 'filetype': a:server.filetype,
+        \ 'save_path': save_path,
+        \ 'object_types': {
+        \   'tables': {'expanded': 0, 'items': {}, 'list': []},
+        \   'views': {'expanded': 0, 'items': {}, 'list': []},
+        \   'procedures': {'expanded': 0, 'items': {}, 'list': []},
+        \   'functions': {'expanded': 0, 'items': {}, 'list': []},
+        \ },
+        \ 'schemas': {'expanded': 0, 'items': {}, 'list': []},
+        \ 'tables': {'expanded': 0, 'items': {}, 'list': []},
+        \ }
+
+  return database
+endfunction
+
+function! s:dbui.populate_databases(server) abort
+  if !a:server.is_server || !g:db_ui_use_ssms_style
+    return
+  endif
+
+  let scheme_info = db_ui#schemas#get(a:server.scheme)
+  if !db_ui#schemas#supports_databases(scheme_info)
+    return
+  endif
+
+  try
+    let query_time = reltime()
+    call db_ui#notifications#info('Fetching databases from '.a:server.name.'...')
+    let result = db_ui#schemas#query_databases(a:server, scheme_info)
+    let parsed_result = get(scheme_info, 'parse_results', {results, min -> results})(result, 1)
+
+    let a:server.databases.list = []
+    for row in parsed_result
+      let db_name = type(row) ==? type([]) ? get(row, 0, '') : row
+      let db_name = trim(db_name)
+      if empty(db_name)
+        continue
+      endif
+
+      " Filter system databases if configured
+      if g:db_ui_hide_system_databases && self.is_system_database(a:server.scheme, db_name)
+        continue
+      endif
+
+      call add(a:server.databases.list, db_name)
+      if !has_key(a:server.databases.items, db_name)
+        let a:server.databases.items[db_name] = self.create_database_structure(a:server, db_name)
+      endif
+    endfor
+
+    call db_ui#notifications#info('Found '.len(a:server.databases.list).' databases on '.a:server.name.' after '.split(reltimestr(reltime(query_time)))[0].' sec.')
+  catch /.*/
+    call db_ui#notifications#error('Error fetching databases: '.v:exception)
+  endtry
+endfunction
+
+function! s:dbui.is_system_database(scheme, db_name) abort
+  let system_dbs = {
+        \ 'sqlserver': ['master', 'model', 'msdb', 'tempdb'],
+        \ 'postgresql': ['template0', 'template1', 'postgres'],
+        \ 'mysql': ['information_schema', 'mysql', 'performance_schema', 'sys'],
+        \ 'mariadb': ['information_schema', 'mysql', 'performance_schema', 'sys'],
+        \ }
+
+  let scheme_system_dbs = get(system_dbs, a:scheme, [])
+  return index(scheme_system_dbs, a:db_name) >= 0
+endfunction
+
+function! s:dbui.connect_to_database(server, db_name) abort
+  if !has_key(a:server.databases.items, a:db_name)
+    return {}
+  endif
+
+  let database = a:server.databases.items[a:db_name]
+  if !empty(database.conn)
+    return database
+  endif
+
+  try
+    let query_time = reltime()
+    call db_ui#notifications#info('Connecting to database '.a:db_name.'...')
+    let database.conn = db#connect(database.url)
+    let database.conn_error = ''
+    call db_ui#notifications#info('Connected to '.a:db_name.' after '.split(reltimestr(reltime(query_time)))[0].' sec.')
+  catch /.*/
+    let database.conn_error = v:exception
+    let database.conn = ''
+    call db_ui#notifications#error('Error connecting to '.a:db_name.': '.v:exception)
+  endtry
+
+  let database.conn_tried = 1
+  return database
+endfunction
+
+function! s:dbui.populate_object_types(database) abort
+  if !g:db_ui_use_ssms_style
+    return
+  endif
+
+  let scheme_info = db_ui#schemas#get(a:database.scheme)
+  let object_types = g:db_ui_ssms_object_types
+
+  for object_type in object_types
+    if object_type ==? 'tables'
+      " Tables are handled by existing populate_tables logic
+      continue
+    endif
+
+    if !a:database.object_types[object_type].expanded
+      continue
+    endif
+
+    call self.populate_object_type(a:database, object_type, scheme_info)
+  endfor
+endfunction
+
+function! s:dbui.populate_object_type(database, object_type, scheme_info) abort
+  let query_func = 'query_' . a:object_type
+  if !exists('*db_ui#schemas#' . query_func)
+    return
+  endif
+
+  try
+    let query_time = reltime()
+    call db_ui#notifications#info('Fetching '.a:object_type.' from '.a:database.name.'...')
+    let result = call('db_ui#schemas#' . query_func, [a:database, a:scheme_info])
+    let parsed_result = get(a:scheme_info, 'parse_results', {results, min -> results})(result, 2)
+
+    let a:database.object_types[a:object_type].list = []
+    let a:database.object_types[a:object_type].items = {}
+
+    for row in parsed_result
+      if type(row) ==? type([]) && len(row) >= 2
+        let schema_name = trim(row[0])
+        let object_name = trim(row[1])
+      else
+        let schema_name = a:database.default_scheme
+        let object_name = trim(row)
+      endif
+
+      if empty(object_name)
+        continue
+      endif
+
+      let full_name = g:db_ui_show_schema_prefix && !empty(schema_name)
+            \ ? '['.schema_name.'].['.object_name.']'
+            \ : object_name
+
+      call add(a:database.object_types[a:object_type].list, full_name)
+      let a:database.object_types[a:object_type].items[full_name] = {
+            \ 'schema': schema_name,
+            \ 'name': object_name,
+            \ 'full_name': full_name,
+            \ 'expanded': 0,
+            \ }
+    endfor
+
+    call db_ui#notifications#info('Found '.len(a:database.object_types[a:object_type].list).' '.a:object_type.' after '.split(reltimestr(reltime(query_time)))[0].' sec.')
+  catch /.*/
+    call db_ui#notifications#error('Error fetching '.a:object_type.': '.v:exception)
+  endtry
 endfunction
 
 " Resolve only urls for DBs that are files
