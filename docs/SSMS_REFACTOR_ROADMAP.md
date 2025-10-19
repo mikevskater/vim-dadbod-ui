@@ -2,10 +2,10 @@
 
 ## Progress Summary
 
-**Overall Status**: 1 of 10 phases complete (10%)
+**Overall Status**: 2 of 10 phases complete (20%)
 
 - ✅ **Phase 1**: Foundation & Configuration - Complete
-- x **Phase 2**: Schema Queries - Not Complete
+- ✅ **Phase 2**: Schema Queries - Complete
 - x **Phase 3**: Connection Handling - Not Complete
 - x **Phase 4**: Data Model Restructuring - Not Complete
 - x **Phase 5**: Drawer Rendering Refactor - Not Complete
@@ -141,7 +141,7 @@ Add to `g:db_ui_icons`:
 
 ---
 
-## Phase 2: Schema & Query Infrastructure (Estimated: 3-4 days) ❌
+## Phase 2: Schema & Query Infrastructure (Estimated: 3-4 days) ✅
 
 ### 2.1 Add Database List Queries
 **File**: `autoload/db_ui/schemas.vim`
@@ -174,8 +174,8 @@ let s:mysql_databases_query = "
   \ ORDER BY schema_name"
 ```
 
-- [ ] Add `databases_query` field to each scheme config
-- [ ] Update scheme configs in `s:schemas` dictionary
+- [x] Add `databases_query` field to each scheme config
+- [x] Update scheme configs in `s:schemas` dictionary
 
 ### 2.2 Add Object Type Queries
 **File**: `autoload/db_ui/schemas.vim`
@@ -299,30 +299,30 @@ WHERE p.SPECIFIC_SCHEMA = '{schema}'
 ORDER BY p.ORDINAL_POSITION
 ```
 
-- [ ] Add queries for views, procedures, functions
-- [ ] Add queries for columns, indexes, keys, constraints
-- [ ] Add queries for parameters (procedures/functions)
-- [ ] Add queries for dependencies (sys.sql_expression_dependencies)
-- [ ] Support for PostgreSQL (pg_views, pg_proc, pg_indexes, pg_constraint)
-- [ ] Support for MySQL (information_schema.routines, information_schema.views, information_schema.columns)
+- [x] Add queries for views, procedures, functions
+- [x] Add queries for columns, indexes, keys, constraints
+- [x] Add queries for parameters (procedures/functions)
+- [x] Add queries for dependencies (sys.sql_expression_dependencies)
+- [x] Support for PostgreSQL (pg_views, pg_proc, pg_indexes, pg_constraint)
+- [x] Support for MySQL (information_schema.routines, information_schema.views, information_schema.columns)
 
 ### 2.3 Update Schema Parser Functions
 **File**: `autoload/db_ui/schemas.vim`
 
-- [ ] Add `db_ui#schemas#query_databases(conn, scheme)` - Query database list
-- [ ] Add `db_ui#schemas#query_views(db, scheme)` - Query views
-- [ ] Add `db_ui#schemas#query_procedures(db, scheme)` - Query procedures
-- [ ] Add `db_ui#schemas#query_functions(db, scheme)` - Query functions
-- [ ] Add `db_ui#schemas#query_columns(db, scheme, schema, table)` - Query columns
-- [ ] Add `db_ui#schemas#query_indexes(db, scheme, schema, table)` - Query indexes
-- [ ] Add `db_ui#schemas#query_primary_keys(db, scheme, schema, table)` - Query PKs
-- [ ] Add `db_ui#schemas#query_foreign_keys(db, scheme, schema, table)` - Query FKs
-- [ ] Add `db_ui#schemas#query_constraints(db, scheme, schema, table)` - Query constraints
-- [ ] Add `db_ui#schemas#query_parameters(db, scheme, schema, object)` - Query parameters
-- [ ] Add `db_ui#schemas#query_dependencies(db, scheme, object_name, object_type)` - Query dependencies
-- [ ] Add `db_ui#schemas#supports_databases(scheme)` - Check if scheme supports database listing
+- [x] Add `db_ui#schemas#query_databases(conn, scheme)` - Query database list
+- [x] Add `db_ui#schemas#query_views(db, scheme)` - Query views
+- [x] Add `db_ui#schemas#query_procedures(db, scheme)` - Query procedures
+- [x] Add `db_ui#schemas#query_functions(db, scheme)` - Query functions
+- [x] Add `db_ui#schemas#query_columns(db, scheme, schema, table)` - Query columns
+- [x] Add `db_ui#schemas#query_indexes(db, scheme, schema, table)` - Query indexes
+- [x] Add `db_ui#schemas#query_primary_keys(db, scheme, schema, table)` - Query PKs
+- [x] Add `db_ui#schemas#query_foreign_keys(db, scheme, schema, table)` - Query FKs
+- [x] Add `db_ui#schemas#query_constraints(db, scheme, schema, table)` - Query constraints
+- [x] Add `db_ui#schemas#query_parameters(db, scheme, schema, object)` - Query parameters
+- [x] Add `db_ui#schemas#query_dependencies(db, scheme, object_name, object_type)` - Query dependencies
+- [x] Add `db_ui#schemas#supports_databases(scheme)` - Check if scheme supports database listing
 
-**Status**: ❌ Phase 2 Not Complete
+**Status**: ✅ Phase 2 Complete
 
 ---
 

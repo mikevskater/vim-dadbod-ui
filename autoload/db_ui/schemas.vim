@@ -44,6 +44,73 @@ else
 endif
 let s:postgres_tables_and_views = postgres_tables_and_views
 
+let s:postgres_databases_query = "
+      \ SELECT datname as database_name
+      \ FROM pg_database
+      \ WHERE datistemplate = false
+      \ ORDER BY datname"
+
+let s:postgres_views_query = "
+      \ SELECT schemaname as table_schema, viewname as view_name
+      \ FROM pg_views
+      \ WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+      \ ORDER BY schemaname, viewname"
+
+let s:postgres_procedures_query = "
+      \ SELECT n.nspname as schema_name, p.proname as procedure_name
+      \ FROM pg_proc p
+      \ JOIN pg_namespace n ON p.pronamespace = n.oid
+      \ WHERE p.prokind = 'p' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+      \ ORDER BY n.nspname, p.proname"
+
+let s:postgres_functions_query = "
+      \ SELECT n.nspname as schema_name, p.proname as function_name
+      \ FROM pg_proc p
+      \ JOIN pg_namespace n ON p.pronamespace = n.oid
+      \ WHERE p.prokind = 'f' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+      \ ORDER BY n.nspname, p.proname"
+
+let s:postgres_columns_query = "
+      \ SELECT column_name, data_type, character_maximum_length, is_nullable, column_default
+      \ FROM information_schema.columns
+      \ WHERE table_schema = '{schema}' AND table_name = '{table}'
+      \ ORDER BY ordinal_position"
+
+let s:postgres_indexes_query = "
+      \ SELECT indexname as index_name, indexdef
+      \ FROM pg_indexes
+      \ WHERE schemaname = '{schema}' AND tablename = '{table}'
+      \ ORDER BY indexname"
+
+let s:postgres_primary_keys_query = "
+      \ SELECT kcu.column_name, tc.constraint_name
+      \ FROM information_schema.table_constraints tc
+      \ JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+      \ WHERE tc.table_schema = '{schema}' AND tc.table_name = '{table}' AND tc.constraint_type = 'PRIMARY KEY'
+      \ ORDER BY kcu.ordinal_position"
+
+let s:postgres_foreign_keys_query_detail = "
+      \ SELECT tc.constraint_name, kcu.column_name, ccu.table_schema AS referenced_schema,
+      \ ccu.table_name AS referenced_table, ccu.column_name AS referenced_column
+      \ FROM information_schema.table_constraints tc
+      \ JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+      \ JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
+      \ WHERE tc.table_schema = '{schema}' AND tc.table_name = '{table}' AND tc.constraint_type = 'FOREIGN KEY'
+      \ ORDER BY tc.constraint_name"
+
+let s:postgres_constraints_query = "
+      \ SELECT tc.constraint_name, tc.constraint_type, cc.check_clause
+      \ FROM information_schema.table_constraints tc
+      \ LEFT JOIN information_schema.check_constraints cc ON tc.constraint_name = cc.constraint_name
+      \ WHERE tc.table_schema = '{schema}' AND tc.table_name = '{table}' AND tc.constraint_type IN ('CHECK', 'UNIQUE')
+      \ ORDER BY tc.constraint_name"
+
+let s:postgres_parameters_query = "
+      \ SELECT p.parameter_name, p.data_type, p.parameter_mode, p.character_maximum_length
+      \ FROM information_schema.parameters p
+      \ WHERE p.specific_schema = '{schema}' AND p.specific_name = '{object_name}'
+      \ ORDER BY p.ordinal_position"
+
 let s:postgresql = {
       \ 'args': ['-A', '-c'],
       \ 'foreign_key_query': s:postgres_foreign_key_query,
@@ -56,6 +123,16 @@ let s:postgresql = {
       \ 'default_scheme': 'public',
       \ 'layout_flag': '\\x',
       \ 'quote': 1,
+      \ 'databases_query': trim(s:postgres_databases_query),
+      \ 'views_query': trim(s:postgres_views_query),
+      \ 'procedures_query': trim(s:postgres_procedures_query),
+      \ 'functions_query': trim(s:postgres_functions_query),
+      \ 'columns_query': trim(s:postgres_columns_query),
+      \ 'indexes_query': trim(s:postgres_indexes_query),
+      \ 'primary_keys_query': trim(s:postgres_primary_keys_query),
+      \ 'foreign_keys_query_detail': trim(s:postgres_foreign_keys_query_detail),
+      \ 'constraints_query': trim(s:postgres_constraints_query),
+      \ 'parameters_query': trim(s:postgres_parameters_query),
       \ }
 
 let s:sqlserver_foreign_keys_query = "
@@ -73,6 +150,79 @@ let s:sqlserver_foreign_keys_query = "
       \ and kcu.column_name = '{col_name}'
       \ "
 
+let s:sqlserver_databases_query = "
+      \ SELECT name as database_name
+      \ FROM sys.databases
+      \ WHERE database_id > 4
+      \ ORDER BY name"
+
+let s:sqlserver_views_query = "
+      \ SELECT SCHEMA_NAME(schema_id) as table_schema, name as view_name
+      \ FROM sys.views
+      \ ORDER BY table_schema, view_name"
+
+let s:sqlserver_procedures_query = "
+      \ SELECT SCHEMA_NAME(schema_id) as schema_name, name as procedure_name
+      \ FROM sys.procedures
+      \ ORDER BY schema_name, procedure_name"
+
+let s:sqlserver_functions_query = "
+      \ SELECT SCHEMA_NAME(schema_id) as schema_name, name as function_name
+      \ FROM sys.objects
+      \ WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT')
+      \ ORDER BY schema_name, function_name"
+
+let s:sqlserver_columns_query = "
+      \ SELECT c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.IS_NULLABLE, c.COLUMN_DEFAULT
+      \ FROM INFORMATION_SCHEMA.COLUMNS c
+      \ WHERE c.TABLE_SCHEMA = '{schema}' AND c.TABLE_NAME = '{table}'
+      \ ORDER BY c.ORDINAL_POSITION"
+
+let s:sqlserver_indexes_query = "
+      \ SELECT i.name AS index_name, i.type_desc, i.is_unique, i.is_primary_key
+      \ FROM sys.indexes i
+      \ WHERE i.object_id = OBJECT_ID('[{schema}].[{table}]') AND i.name IS NOT NULL
+      \ ORDER BY i.name"
+
+let s:sqlserver_primary_keys_query = "
+      \ SELECT kcu.COLUMN_NAME, tc.CONSTRAINT_NAME
+      \ FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+      \ JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+      \ WHERE tc.TABLE_SCHEMA = '{schema}' AND tc.TABLE_NAME = '{table}' AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+      \ ORDER BY kcu.ORDINAL_POSITION"
+
+let s:sqlserver_foreign_keys_query_detail = "
+      \ SELECT fk.name AS constraint_name, COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS column_name,
+      \ OBJECT_SCHEMA_NAME(fk.referenced_object_id) AS referenced_schema, OBJECT_NAME(fk.referenced_object_id) AS referenced_table,
+      \ COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS referenced_column
+      \ FROM sys.foreign_keys fk
+      \ JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
+      \ WHERE fk.parent_object_id = OBJECT_ID('[{schema}].[{table}]')
+      \ ORDER BY fk.name"
+
+let s:sqlserver_constraints_query = "
+      \ SELECT tc.CONSTRAINT_NAME, tc.CONSTRAINT_TYPE, cc.CHECK_CLAUSE
+      \ FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+      \ LEFT JOIN INFORMATION_SCHEMA.CHECK_CONSTRAINTS cc ON tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+      \ WHERE tc.TABLE_SCHEMA = '{schema}' AND tc.TABLE_NAME = '{table}' AND tc.CONSTRAINT_TYPE IN ('CHECK', 'UNIQUE')
+      \ ORDER BY tc.CONSTRAINT_NAME"
+
+let s:sqlserver_parameters_query = "
+      \ SELECT p.PARAMETER_NAME, p.DATA_TYPE, p.PARAMETER_MODE, p.CHARACTER_MAXIMUM_LENGTH
+      \ FROM INFORMATION_SCHEMA.PARAMETERS p
+      \ WHERE p.SPECIFIC_SCHEMA = '{schema}' AND p.SPECIFIC_NAME = '{object_name}'
+      \ ORDER BY p.ORDINAL_POSITION"
+
+let s:sqlserver_dependencies_query = "
+      \ SELECT OBJECT_SCHEMA_NAME(referencing_id) AS ReferencingSchema, OBJECT_NAME(referencing_id) AS ReferencingObject,
+      \ o.type_desc AS ReferencingType, OBJECT_SCHEMA_NAME(referenced_id) AS ReferencedSchema,
+      \ OBJECT_NAME(referenced_id) AS ReferencedObject, o2.type_desc AS ReferencedType
+      \ FROM sys.sql_expression_dependencies sed
+      \ JOIN sys.objects o ON sed.referencing_id = o.object_id
+      \ LEFT JOIN sys.objects o2 ON sed.referenced_id = o2.object_id
+      \ WHERE sed.referencing_id = OBJECT_ID('[{schema}].[{object}]') OR sed.referenced_id = OBJECT_ID('[{schema}].[{object}]')
+      \ ORDER BY ReferencingSchema, ReferencingObject"
+
 let s:sqlserver = {
       \   'args': ['-h-1', '-W', '-s', '|', '-Q'],
       \   'foreign_key_query': trim(s:sqlserver_foreign_keys_query),
@@ -84,12 +234,83 @@ let s:sqlserver = {
       \   'parse_results': {results, min_len -> s:results_parser(results[0:-3], '|', min_len)},
       \   'quote': 0,
       \   'default_scheme': 'dbo',
+      \   'databases_query': trim(s:sqlserver_databases_query),
+      \   'views_query': trim(s:sqlserver_views_query),
+      \   'procedures_query': trim(s:sqlserver_procedures_query),
+      \   'functions_query': trim(s:sqlserver_functions_query),
+      \   'columns_query': trim(s:sqlserver_columns_query),
+      \   'indexes_query': trim(s:sqlserver_indexes_query),
+      \   'primary_keys_query': trim(s:sqlserver_primary_keys_query),
+      \   'foreign_keys_query_detail': trim(s:sqlserver_foreign_keys_query_detail),
+      \   'constraints_query': trim(s:sqlserver_constraints_query),
+      \   'parameters_query': trim(s:sqlserver_parameters_query),
+      \   'dependencies_query': trim(s:sqlserver_dependencies_query),
       \ }
 
 let s:mysql_foreign_key_query =  "
       \ SELECT referenced_table_name, referenced_column_name, referenced_table_schema
       \ from information_schema.key_column_usage
       \ where referenced_table_name is not null and column_name = '{col_name}' LIMIT 1"
+
+let s:mysql_databases_query = "
+      \ SELECT schema_name as database_name
+      \ FROM information_schema.schemata
+      \ ORDER BY schema_name"
+
+let s:mysql_views_query = "
+      \ SELECT table_schema, table_name as view_name
+      \ FROM information_schema.views
+      \ ORDER BY table_schema, table_name"
+
+let s:mysql_procedures_query = "
+      \ SELECT routine_schema as schema_name, routine_name as procedure_name
+      \ FROM information_schema.routines
+      \ WHERE routine_type = 'PROCEDURE'
+      \ ORDER BY routine_schema, routine_name"
+
+let s:mysql_functions_query = "
+      \ SELECT routine_schema as schema_name, routine_name as function_name
+      \ FROM information_schema.routines
+      \ WHERE routine_type = 'FUNCTION'
+      \ ORDER BY routine_schema, routine_name"
+
+let s:mysql_columns_query = "
+      \ SELECT column_name, data_type, character_maximum_length, is_nullable, column_default
+      \ FROM information_schema.columns
+      \ WHERE table_schema = '{schema}' AND table_name = '{table}'
+      \ ORDER BY ordinal_position"
+
+let s:mysql_indexes_query = "
+      \ SELECT index_name, index_type, non_unique
+      \ FROM information_schema.statistics
+      \ WHERE table_schema = '{schema}' AND table_name = '{table}'
+      \ GROUP BY index_name, index_type, non_unique
+      \ ORDER BY index_name"
+
+let s:mysql_primary_keys_query = "
+      \ SELECT column_name, constraint_name
+      \ FROM information_schema.key_column_usage
+      \ WHERE table_schema = '{schema}' AND table_name = '{table}' AND constraint_name = 'PRIMARY'
+      \ ORDER BY ordinal_position"
+
+let s:mysql_foreign_keys_query_detail = "
+      \ SELECT constraint_name, column_name, referenced_table_schema, referenced_table_name, referenced_column_name
+      \ FROM information_schema.key_column_usage
+      \ WHERE table_schema = '{schema}' AND table_name = '{table}' AND referenced_table_name IS NOT NULL
+      \ ORDER BY constraint_name"
+
+let s:mysql_constraints_query = "
+      \ SELECT constraint_name, constraint_type
+      \ FROM information_schema.table_constraints
+      \ WHERE table_schema = '{schema}' AND table_name = '{table}' AND constraint_type IN ('CHECK', 'UNIQUE')
+      \ ORDER BY constraint_name"
+
+let s:mysql_parameters_query = "
+      \ SELECT parameter_name, data_type, parameter_mode, character_maximum_length
+      \ FROM information_schema.parameters
+      \ WHERE specific_schema = '{schema}' AND specific_name = '{object_name}'
+      \ ORDER BY ordinal_position"
+
 let s:mysql = {
       \ 'foreign_key_query': s:mysql_foreign_key_query,
       \ 'schemes_query': 'SELECT schema_name FROM information_schema.schemata',
@@ -103,6 +324,16 @@ let s:mysql = {
       \ 'layout_flag': '\\G',
       \ 'quote': 0,
       \ 'filetype': 'mysql',
+      \ 'databases_query': trim(s:mysql_databases_query),
+      \ 'views_query': trim(s:mysql_views_query),
+      \ 'procedures_query': trim(s:mysql_procedures_query),
+      \ 'functions_query': trim(s:mysql_functions_query),
+      \ 'columns_query': trim(s:mysql_columns_query),
+      \ 'indexes_query': trim(s:mysql_indexes_query),
+      \ 'primary_keys_query': trim(s:mysql_primary_keys_query),
+      \ 'foreign_keys_query_detail': trim(s:mysql_foreign_keys_query_detail),
+      \ 'constraints_query': trim(s:mysql_constraints_query),
+      \ 'parameters_query': trim(s:mysql_parameters_query),
       \ }
 
 let s:oracle_args = join(
@@ -284,4 +515,111 @@ function db_ui#schemas#supports_schemes(scheme, parsed_url)
   endif
 
   return 1
+endfunction
+
+" SSMS-style helper functions
+function! db_ui#schemas#supports_databases(scheme) abort
+  return !empty(get(a:scheme, 'databases_query', ''))
+endfunction
+
+function! db_ui#schemas#query_databases(db, scheme) abort
+  let query = get(a:scheme, 'databases_query', '')
+  if empty(query)
+    return []
+  endif
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_views(db, scheme) abort
+  let query = get(a:scheme, 'views_query', '')
+  if empty(query)
+    return []
+  endif
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_procedures(db, scheme) abort
+  let query = get(a:scheme, 'procedures_query', '')
+  if empty(query)
+    return []
+  endif
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_functions(db, scheme) abort
+  let query = get(a:scheme, 'functions_query', '')
+  if empty(query)
+    return []
+  endif
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_columns(db, scheme, schema, table) abort
+  let query = get(a:scheme, 'columns_query', '')
+  if empty(query)
+    return []
+  endif
+  let query = substitute(query, '{schema}', a:schema, 'g')
+  let query = substitute(query, '{table}', a:table, 'g')
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_indexes(db, scheme, schema, table) abort
+  let query = get(a:scheme, 'indexes_query', '')
+  if empty(query)
+    return []
+  endif
+  let query = substitute(query, '{schema}', a:schema, 'g')
+  let query = substitute(query, '{table}', a:table, 'g')
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_primary_keys(db, scheme, schema, table) abort
+  let query = get(a:scheme, 'primary_keys_query', '')
+  if empty(query)
+    return []
+  endif
+  let query = substitute(query, '{schema}', a:schema, 'g')
+  let query = substitute(query, '{table}', a:table, 'g')
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_foreign_keys(db, scheme, schema, table) abort
+  let query = get(a:scheme, 'foreign_keys_query_detail', '')
+  if empty(query)
+    return []
+  endif
+  let query = substitute(query, '{schema}', a:schema, 'g')
+  let query = substitute(query, '{table}', a:table, 'g')
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_constraints(db, scheme, schema, table) abort
+  let query = get(a:scheme, 'constraints_query', '')
+  if empty(query)
+    return []
+  endif
+  let query = substitute(query, '{schema}', a:schema, 'g')
+  let query = substitute(query, '{table}', a:table, 'g')
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_parameters(db, scheme, schema, object_name) abort
+  let query = get(a:scheme, 'parameters_query', '')
+  if empty(query)
+    return []
+  endif
+  let query = substitute(query, '{schema}', a:schema, 'g')
+  let query = substitute(query, '{object_name}', a:object_name, 'g')
+  return db_ui#schemas#query(a:db, a:scheme, query)
+endfunction
+
+function! db_ui#schemas#query_dependencies(db, scheme, schema, object_name) abort
+  let query = get(a:scheme, 'dependencies_query', '')
+  if empty(query)
+    return []
+  endif
+  let query = substitute(query, '{schema}', a:schema, 'g')
+  let query = substitute(query, '{object}', a:object_name, 'g')
+  return db_ui#schemas#query(a:db, a:scheme, query)
 endfunction
