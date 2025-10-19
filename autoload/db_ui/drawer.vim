@@ -406,6 +406,12 @@ function! s:drawer.add(label, action, type, icon, dbui_db_key_name, level, ...)
 endfunction
 
 function! s:drawer.add_db(db) abort
+  " Check if this is a server-level connection in SSMS mode
+  if get(a:db, 'is_server', 0) && g:db_ui_use_ssms_style
+    return self.add_server(a:db)
+  endif
+
+  " Legacy database-level rendering
   let db_name = a:db.name
 
   if !empty(a:db.conn_error)
@@ -434,6 +440,99 @@ function! s:drawer.add_db(db) abort
     elseif section ==# 'schemas'
       call self._render_schemas_section(a:db)
     endif
+  endfor
+endfunction
+
+" SSMS-style server rendering functions
+function! s:drawer.add_server(server) abort
+  let server_name = a:server.name
+
+  if !empty(a:server.conn_error)
+    let server_name .= ' '.g:db_ui_icons.connection_error
+  elseif !empty(a:server.conn)
+    let server_name .= ' '.g:db_ui_icons.connection_ok
+  endif
+
+  if self.show_details
+    let server_name .= ' ('.a:server.scheme.' - '.a:server.source.' - Server)'
+  endif
+
+  call self.add(server_name, 'toggle', 'server', self.get_toggle_icon('db', a:server), a:server.key_name, 0, { 'expanded': a:server.expanded })
+
+  if !a:server.expanded
+    return a:server
+  endif
+
+  " Render Databases group
+  call self.render_databases(a:server)
+endfunction
+
+function! s:drawer.render_databases(server) abort
+  let databases_icon = self.get_toggle_icon('schemas', a:server.databases)
+  let db_count = len(a:server.databases.list)
+  call self.add('Databases ('.db_count.')', 'toggle', 'server->databases', databases_icon, a:server.key_name, 1, { 'expanded': a:server.databases.expanded })
+
+  if !a:server.databases.expanded
+    return
+  endif
+
+  for db_name in a:server.databases.list
+    let database = a:server.databases.items[db_name]
+    call self.add_database(a:server, database, 2)
+  endfor
+endfunction
+
+function! s:drawer.add_database(server, database, level) abort
+  let db_name = a:database.name
+  let db_icon = self.get_toggle_icon('schema', a:database)
+
+  if !empty(a:database.conn_error)
+    let db_name .= ' '.g:db_ui_icons.connection_error
+  elseif !empty(a:database.conn)
+    let db_name .= ' '.g:db_ui_icons.connection_ok
+  endif
+
+  call self.add(db_name, 'toggle', 'server->database->'.a:database.name, db_icon, a:server.key_name, a:level, { 'expanded': a:database.expanded, 'database_name': a:database.name })
+
+  if !a:database.expanded
+    return
+  endif
+
+  " Render object types
+  call self.render_object_types(a:server, a:database, a:level + 1)
+endfunction
+
+function! s:drawer.render_object_types(server, database, level) abort
+  for object_type in g:db_ui_ssms_object_types
+    if object_type ==# 'tables'
+      call self.render_object_type_group(a:server, a:database, 'TABLES', 'tables', a:database.tables, a:level)
+    elseif object_type ==# 'views'
+      call self.render_object_type_group(a:server, a:database, 'VIEWS', 'views', a:database.object_types.views, a:level)
+    elseif object_type ==# 'procedures'
+      call self.render_object_type_group(a:server, a:database, 'PROCEDURES', 'procedures', a:database.object_types.procedures, a:level)
+    elseif object_type ==# 'functions'
+      call self.render_object_type_group(a:server, a:database, 'FUNCTIONS', 'functions', a:database.object_types.functions, a:level)
+    endif
+  endfor
+endfunction
+
+function! s:drawer.render_object_type_group(server, database, label, object_type, object_data, level) abort
+  let count = len(a:object_data.list)
+  let icon = self.get_toggle_icon('tables', a:object_data)
+  let type_path = 'server->database->'.a:database.name.'->'.a:object_type
+
+  call self.add(a:label.' ('.count.')', 'toggle', type_path, icon, a:server.key_name, a:level, { 'expanded': a:object_data.expanded, 'database_name': a:database.name, 'object_type': a:object_type })
+
+  if !a:object_data.expanded
+    return
+  endif
+
+  " Render individual objects
+  for object_name in a:object_data.list
+    let object_item = a:object_data.items[object_name]
+    call self.add(object_name, 'toggle', type_path.'->'.object_name, self.get_toggle_icon('table', object_item), a:server.key_name, a:level + 1, { 'expanded': object_item.expanded, 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name })
+
+    " TODO: Render object actions and structural info in Phase 6
   endfor
 endfunction
 
@@ -559,12 +658,30 @@ function! s:drawer.toggle_db(db) abort
     return a:db
   endif
 
+  " Handle server-level connections in SSMS mode
+  if get(a:db, 'is_server', 0) && g:db_ui_use_ssms_style
+    return self.toggle_server(a:db)
+  endif
+
+  " Legacy database-level connection handling
   call self.load_saved_queries(a:db)
 
   call self.dbui.connect(a:db)
 
   if !empty(a:db.conn)
     call self.populate(a:db)
+  endif
+endfunction
+
+function! s:drawer.toggle_server(server) abort
+  if !a:server.expanded
+    return a:server
+  endif
+
+  call self.dbui.connect(a:server)
+
+  if !empty(a:server.conn)
+    call self.dbui.populate_databases(a:server)
   endif
 endfunction
 

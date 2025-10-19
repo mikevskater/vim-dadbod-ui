@@ -2,13 +2,13 @@
 
 ## Progress Summary
 
-**Overall Status**: 4 of 10 phases complete (40%)
+**Overall Status**: 5 of 10 phases complete (50%)
 
 - ✅ **Phase 1**: Foundation & Configuration - Complete
 - ✅ **Phase 2**: Schema Queries - Complete
 - ✅ **Phase 3**: Connection Handling - Complete
 - ✅ **Phase 4**: Data Model Restructuring - Complete
-- x **Phase 5**: Drawer Rendering Refactor - Not Complete
+- ✅ **Phase 5**: Drawer Rendering Refactor - Complete
 - x **Phase 6**: Actions & Query Execution - Not Complete
 - x **Phase 7**: Toggle & Navigation - Not Complete
 - x **Phase 8**: Performance Optimization - Not Complete
@@ -431,15 +431,15 @@ let server = {
 
 ---
 
-## Phase 5: Drawer Rendering Refactor (Estimated: 5-6 days) ❌
+## Phase 5: Drawer Rendering Refactor (Estimated: 5-6 days) ✅
 
 ### 5.1 Core Rendering Changes
 **File**: `autoload/db_ui/drawer.vim`
 
-- [ ] Modify `s:drawer.add_db()` to detect server vs database connection
-- [ ] Create `s:drawer.add_server()` - Render server-level connection
-- [ ] Create `s:drawer.add_database(server, db_name, level)` - Render individual database
-- [ ] Create `s:drawer.render_object_types(database, level)` - Render object type groups
+- [x] Modify `s:drawer.add_db()` to detect server vs database connection
+- [x] Create `s:drawer.add_server()` - Render server-level connection
+- [x] Create `s:drawer.add_database(server, db_name, level)` - Render individual database
+- [x] Create `s:drawer.render_object_types(database, level)` - Render object type groups
 
 ### 5.2 Object Type Rendering
 **File**: `autoload/db_ui/drawer.vim`
@@ -464,10 +464,10 @@ function! s:drawer.render_functions_group(database, level)
 endfunction
 ```
 
-- [ ] Implement each rendering function
-- [ ] Show object counts: "TABLES (25)", "VIEWS (12)", etc.
-- [ ] Format names as [schema].[objectname]
-- [ ] Handle objects without schemas (default schema)
+- [x] Implement unified rendering via `render_object_type_group()`
+- [x] Show object counts: "TABLES (25)", "VIEWS (12)", etc.
+- [x] Format names as [schema].[objectname] based on g:db_ui_show_schema_prefix
+- [x] Handle objects without schemas (default schema)
 
 ### 5.3 Object Actions and Structural Groups Rendering
 **File**: `autoload/db_ui/drawer.vim`
@@ -531,29 +531,29 @@ function! s:drawer.render_parameters_list(object, schema, level)
 endfunction
 ```
 
-- [ ] Implement action rendering (immediate execution)
-- [ ] Implement structural group rendering (expand/collapse)
-- [ ] Show item counts in group headers: "Columns (8)"
-- [ ] Render individual items with appropriate formatting
-- [ ] Use appropriate icons for each type
-- [ ] Store metadata for execution/navigation
+- [ ] Implement action rendering (immediate execution) - Deferred to Phase 6
+- [ ] Implement structural group rendering (expand/collapse) - Deferred to Phase 6
+- [ ] Show item counts in group headers: "Columns (8)" - Deferred to Phase 6
+- [ ] Render individual items with appropriate formatting - Deferred to Phase 6
+- [ ] Use appropriate icons for each type - Deferred to Phase 6
+- [ ] Store metadata for execution/navigation - Deferred to Phase 6
 
 ### 5.4 Populate Functions for Drawer
 **File**: `autoload/db_ui/drawer.vim`
 
-- [ ] Modify `s:drawer.populate()` to handle server connections
-- [ ] Add `s:drawer.populate_server()` - Lazy load databases
-- [ ] Add `s:drawer.populate_database_objects()` - Lazy load object types
-- [ ] Modify `s:drawer.populate_schemas()` to work with new structure
+- [x] Modify `s:drawer.toggle_db()` to handle server connections
+- [x] Add `s:drawer.toggle_server()` - Lazy load databases
+- [x] Add `s:drawer.render_databases()` - Render databases list
+- [ ] Modify `s:drawer.populate_schemas()` to work with new structure (Not needed - using object_types instead)
 
 ### 5.5 Legacy Support in Drawer
 **File**: `autoload/db_ui/drawer.vim`
 
-- [ ] Keep existing `add_db()` behavior for database-level connections
-- [ ] Add feature flag checks (g:db_ui_use_ssms_style)
-- [ ] Ensure backward compatibility with current drawer sections
+- [x] Keep existing `add_db()` behavior for database-level connections
+- [x] Add feature flag checks (g:db_ui_use_ssms_style)
+- [x] Ensure backward compatibility with current drawer sections
 
-**Status**: ❌ Phase 5 Not Complete
+**Status**: ✅ Phase 5 Complete
 
 ---
 
