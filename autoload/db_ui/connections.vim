@@ -44,11 +44,25 @@ endfunction
 function! s:connections.add_full_url() abort
   let url = ''
 
+  " Show helpful prompt based on SSMS-style setting
+  let prompt_msg = 'Enter connection url: '
+  if g:db_ui_use_ssms_style
+    let prompt_msg = 'Enter connection url (Server-level: sqlserver://localhost or Database-level: sqlserver://localhost/MyDB): '
+  endif
+
   try
-    let url = db_ui#resolve(db_ui#utils#input('Enter connection url: ', url))
+    let url = db_ui#resolve(db_ui#utils#input(prompt_msg, url))
     call db#url#parse(url)
     " Attempt to resolve to check if it's valid url
-    call db#resolve(url)
+    " For server-level connections, this might fail, so we handle it gracefully
+    try
+      call db#resolve(url)
+    catch /.*/
+      " If it fails but looks like a server-level URL, that's okay
+      if !self.is_likely_server_url(url)
+        throw v:exception
+      endif
+    endtry
   catch /.*/
     return db_ui#notifications#error(v:exception)
   endtry
@@ -60,6 +74,31 @@ function! s:connections.add_full_url() abort
   endtry
 
   return self.save(name, url)
+endfunction
+
+function! s:connections.is_likely_server_url(url) abort
+  " Check if URL is likely a server-level connection (no database in path)
+  try
+    let parsed = db#url#parse(a:url)
+    let path = get(parsed, 'path', '/')
+    let db_name = substitute(path, '^\/', '', '')
+    return empty(db_name) || db_name ==? '/'
+  catch /.*/
+    return 0
+  endtry
+endfunction
+
+function! s:connections.get_connection_type(url) abort
+  if !g:db_ui_use_ssms_style
+    return 'database'
+  endif
+
+  let parsed = db#url#parse(a:url)
+  let path = get(parsed, 'path', '/')
+  let db_name = substitute(path, '^\/', '', '')
+  let has_database = !empty(db_name) && db_name !=? '/'
+
+  return has_database ? 'database' : 'server'
 endfunction
 
 function! s:connections.rename(db) abort

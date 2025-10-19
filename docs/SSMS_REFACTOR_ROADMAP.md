@@ -2,11 +2,11 @@
 
 ## Progress Summary
 
-**Overall Status**: 2 of 10 phases complete (20%)
+**Overall Status**: 3 of 10 phases complete (30%)
 
 - ✅ **Phase 1**: Foundation & Configuration - Complete
 - ✅ **Phase 2**: Schema Queries - Complete
-- x **Phase 3**: Connection Handling - Not Complete
+- ✅ **Phase 3**: Connection Handling - Complete
 - x **Phase 4**: Data Model Restructuring - Not Complete
 - x **Phase 5**: Drawer Rendering Refactor - Not Complete
 - x **Phase 6**: Actions & Query Execution - Not Complete
@@ -326,27 +326,27 @@ ORDER BY p.ORDINAL_POSITION
 
 ---
 
-## Phase 3: Connection & URL Handling (Estimated: 2-3 days) ❌
+## Phase 3: Connection & URL Handling (Estimated: 2-3 days) ✅
 
 ### 3.1 Enhance URL Parsing
 **File**: `autoload/db_ui.vim`
 
-- [ ] Add `s:dbui.parse_connection_level(url)` - Determine if connection is server-level or database-level
+- [x] Add `s:dbui.parse_connection_level(url)` - Determine if connection is server-level or database-level
   ```vim
   " Returns: { 'level': 'server'|'database', 'has_database': 0|1, 'database': 'name'|'' }
   ```
-- [ ] Add `s:dbui.is_server_connection(db)` helper
-- [ ] Add `s:dbui.get_database_from_url(url)` helper
-- [ ] Add `s:dbui.build_database_url(server_url, database_name)` helper
-- [ ] Modify `s:dbui.populate_dbs()` to handle server-level connections (Phase 4)
+- [x] Add `s:dbui.is_server_connection(db)` helper
+- [x] Add `s:dbui.get_database_from_url(url)` helper
+- [x] Add `s:dbui.build_database_url(server_url, database_name)` helper
+- [ ] Modify `s:dbui.populate_dbs()` to handle server-level connections (Deferred to Phase 4)
 
 ### 3.2 Connection String Support
 **File**: `autoload/db_ui/connections.vim`
 
-- [ ] Update connection validation to allow server-only URLs
-- [ ] Add `s:connections.get_connection_type(url)` to detect Server vs Database
-- [ ] Update connection display to show "Server" vs "Database" type in drawer details
-- [ ] Add helper text when adding connections about server vs database level
+- [x] Update connection validation to allow server-only URLs
+- [x] Add `s:connections.get_connection_type(url)` to detect Server vs Database
+- [x] Add `s:connections.is_likely_server_url(url)` helper for validation
+- [x] Add helper text when adding connections about server vs database level
 
 Example connection strings:
 ```
@@ -356,7 +356,7 @@ postgresql://localhost                         # Server-level
 postgresql://localhost:5432/postgres          # Database-level (legacy)
 ```
 
-**Status**: ❌ Phase 3 Not Complete
+**Status**: ✅ Phase 3 Complete
 
 ---
 

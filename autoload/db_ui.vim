@@ -363,6 +363,49 @@ function! s:dbui.parse_url(url) abort
   endtry
 endfunction
 
+" SSMS-style connection helper functions
+function! s:dbui.parse_connection_level(url) abort
+  let parsed = self.parse_url(a:url)
+  if empty(parsed)
+    return { 'level': 'unknown', 'has_database': 0, 'database': '' }
+  endif
+
+  let path = get(parsed, 'path', '/')
+  let db_name = substitute(path, '^\/', '', '')
+  let has_database = !empty(db_name) && db_name !=? '/'
+
+  return {
+        \ 'level': has_database ? 'database' : 'server',
+        \ 'has_database': has_database ? 1 : 0,
+        \ 'database': db_name
+        \ }
+endfunction
+
+function! s:dbui.is_server_connection(db) abort
+  if !g:db_ui_use_ssms_style
+    return 0
+  endif
+  let conn_level = self.parse_connection_level(a:db.url)
+  return conn_level.level ==? 'server'
+endfunction
+
+function! s:dbui.get_database_from_url(url) abort
+  let conn_level = self.parse_connection_level(a:url)
+  return conn_level.database
+endfunction
+
+function! s:dbui.build_database_url(server_url, database_name) abort
+  let parsed = self.parse_url(a:server_url)
+  if empty(parsed)
+    return ''
+  endif
+
+  " Remove trailing slash if present
+  let base_url = substitute(a:server_url, '\/$', '', '')
+  " Add database name
+  return base_url . '/' . a:database_name
+endfunction
+
 function! s:dbui.populate_from_connections_file() abort
   if empty(self.connections_path) || !filereadable(self.connections_path)
     return
