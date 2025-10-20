@@ -1100,10 +1100,14 @@ function! s:drawer.parse_alter_result(result, scheme) abort
   " For SQL Server, the result format varies by query type
   if scheme =~? '^sqlserver' || scheme =~? '^mssql'
     " SQL Server sys.sql_modules returns definition in a single-column result
-    " Format: header, separator line, data rows
+    " Format:
+    " - header line (column name: "definition")
+    " - separator line (-----)
+    " - data rows (the actual definition, may span multiple lines)
+    " - empty lines
+    " - metadata line "(N rows affected)"
     let definition_lines = []
     let found_separator = 0
-    let header_count = 0
 
     for line in a:result
       " Skip separator lines (-----)
@@ -1112,28 +1116,29 @@ function! s:drawer.parse_alter_result(result, scheme) abort
         continue
       endif
 
-      " Skip header line (column name)
+      " Skip header line (before separator)
       if !found_separator
-        let header_count += 1
         continue
       endif
 
-      " After separator, collect all non-empty lines
-      " The definition might span multiple lines or be in a single line
-      let trimmed = trim(line)
-      if !empty(trimmed)
-        call add(definition_lines, line)
+      " Stop at metadata lines like "(1 rows affected)"
+      if line =~? '^(\d\+ rows\? affected)'
+        break
       endif
+
+      " Collect all lines after separator (including empty lines for formatting)
+      " The definition includes the full CREATE statement
+      call add(definition_lines, line)
     endfor
+
+    " Remove trailing empty lines
+    while !empty(definition_lines) && empty(trim(definition_lines[-1]))
+      call remove(definition_lines, -1)
+    endwhile
 
     " If we have definition lines, join them
     if !empty(definition_lines)
       return join(definition_lines, "\n")
-    endif
-
-    " Fallback: if no data after separator, try to get everything after first 2 lines
-    if len(a:result) > 2
-      return join(a:result[2:], "\n")
     endif
 
     return ''
