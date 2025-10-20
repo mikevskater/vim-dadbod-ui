@@ -691,78 +691,74 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
 endfunction
 
 function! s:drawer.render_structural_group_items(data, group_type, db_key_name, level) abort
-  " Render individual items in a structural group
+  " Render individual items in a structural group with aligned columns
   if empty(a:data)
     call self.add('(No '.a:group_type.')', 'noaction', 'info', '', a:db_key_name, a:level)
     return
   endif
 
+  " Calculate column widths for alignment
+  let max_widths = []
+  let formatted_rows = []
+
+  " First pass: collect all rows and calculate max widths
   for row in a:data
-    if a:group_type ==# 'columns'
-      " Format: column_name (data_type, nullable)
-      let col_name = type(row) ==? type([]) ? get(row, 0, '') : row
-      let data_type = type(row) ==? type([]) ? get(row, 1, '') : ''
-      let nullable = type(row) ==? type([]) ? get(row, 3, '') : ''
-      let display = col_name
-      if !empty(data_type)
-        let display .= ' ('.data_type
-        if nullable ==# 'YES'
-          let display .= ', NULL'
+    if type(row) ==? type([])
+      " Ensure we have enough width slots
+      while len(max_widths) < len(row)
+        call add(max_widths, 0)
+      endwhile
+
+      " Calculate widths for this row
+      for idx in range(len(row))
+        let val = string(row[idx])
+        if len(val) > max_widths[idx]
+          let max_widths[idx] = len(val)
         endif
-        let display .= ')'
-      endif
-      call self.add(display, 'noaction', 'column', '', a:db_key_name, a:level)
+      endfor
 
-    elseif a:group_type ==# 'indexes'
-      " Format: index_name (type, unique)
-      let idx_name = type(row) ==? type([]) ? get(row, 0, '') : row
-      let idx_type = type(row) ==? type([]) ? get(row, 1, '') : ''
-      let is_unique = type(row) ==? type([]) ? get(row, 2, '') : ''
-      let display = idx_name
-      if !empty(idx_type)
-        let display .= ' ('.idx_type
-        if is_unique ==# '1' || is_unique ==# 'true'
-          let display .= ', Unique'
-        endif
-        let display .= ')'
-      endif
-      call self.add(display, 'noaction', 'index', '', a:db_key_name, a:level)
-
-    elseif a:group_type ==# 'constraints'
-      " Format: constraint_name (type)
-      let cons_name = type(row) ==? type([]) ? get(row, 0, '') : row
-      let cons_type = type(row) ==? type([]) ? get(row, 1, '') : ''
-      let display = cons_name
-      if !empty(cons_type)
-        let display .= ' ('.cons_type.')'
-      endif
-      call self.add(display, 'noaction', 'constraint', '', a:db_key_name, a:level)
-
-    elseif a:group_type ==# 'parameters'
-      " Format: param_name (data_type, mode)
-      let param_name = type(row) ==? type([]) ? get(row, 0, '') : row
-      let data_type = type(row) ==? type([]) ? get(row, 1, '') : ''
-      let mode = type(row) ==? type([]) ? get(row, 2, '') : ''
-      let display = param_name
-      if !empty(data_type)
-        let display .= ' ('.data_type
-        if !empty(mode)
-          let display .= ', '.mode
-        endif
-        let display .= ')'
-      endif
-      call self.add(display, 'noaction', 'parameter', '', a:db_key_name, a:level)
-
-    elseif a:group_type ==# 'keys'
-      " Format: key info
-      let key_info = type(row) ==? type([]) ? join(row, ' ') : row
-      call self.add(key_info, 'noaction', 'key', '', a:db_key_name, a:level)
-
+      call add(formatted_rows, row)
     else
-      " Generic fallback
-      let item_str = type(row) ==? type([]) ? join(row, ' | ') : row
-      call self.add(item_str, 'noaction', 'item', '', a:db_key_name, a:level)
+      " Non-array row
+      call add(formatted_rows, [row])
+      if len(max_widths) < 1
+        call add(max_widths, 0)
+      endif
+      if len(string(row)) > max_widths[0]
+        let max_widths[0] = len(string(row))
+      endif
     endif
+  endfor
+
+  " Second pass: render with aligned columns
+  for row in formatted_rows
+    let parts = []
+
+    for idx in range(len(row))
+      let val = string(row[idx])
+      let width = idx < len(max_widths) ? max_widths[idx] : len(val)
+      " Pad with spaces to align
+      let padded = val . repeat(' ', width - len(val))
+      call add(parts, padded)
+    endfor
+
+    let display = join(parts, ' | ')
+
+    " Set appropriate item type
+    let item_type = 'item'
+    if a:group_type ==# 'columns'
+      let item_type = 'column'
+    elseif a:group_type ==# 'indexes'
+      let item_type = 'index'
+    elseif a:group_type ==# 'constraints'
+      let item_type = 'constraint'
+    elseif a:group_type ==# 'parameters'
+      let item_type = 'parameter'
+    elseif a:group_type ==# 'keys'
+      let item_type = 'key'
+    endif
+
+    call self.add(display, 'noaction', item_type, '', a:db_key_name, a:level)
   endfor
 endfunction
 
