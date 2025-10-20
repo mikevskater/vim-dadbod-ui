@@ -1395,7 +1395,17 @@ function! s:drawer.populate_tables(db) abort
     let scheme_info = db_ui#schemas#get(a:db.scheme)
     if has_key(scheme_info, 'schemes_tables_query')
       try
-        let result = db_ui#schemas#query(a:db, scheme_info, scheme_info.schemes_tables_query)
+        " Build query with database filter for MySQL/MariaDB and SQL Server
+        let query = scheme_info.schemes_tables_query
+        if (a:db.scheme =~? '^mysql' || a:db.scheme =~? '^mariadb') && has_key(a:db, 'name')
+          " For MySQL, filter by TABLE_SCHEMA (database name)
+          let query = query . ' WHERE table_schema = ''' . a:db.name . ''''
+        elseif (a:db.scheme =~? '^sqlserver' || a:db.scheme =~? '^mssql') && has_key(a:db, 'name')
+          " For SQL Server, filter by TABLE_CATALOG (database name)
+          let query = query . ' WHERE TABLE_CATALOG = ''' . a:db.name . ''''
+        endif
+
+        let result = db_ui#schemas#query(a:db, scheme_info, query)
         let parsed_result = scheme_info.parse_results(result, 2)
 
         for row in parsed_result
