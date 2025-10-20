@@ -10,7 +10,6 @@ let s:object_helpers = {}
 let s:object_helpers.sqlserver = {
       \ 'table': {
       \   'SELECT': 'SELECT TOP 100 * FROM [{schema}].[{table}]',
-      \   'ALTER': 'SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(''[{schema}].[{table}]'')',
       \   'DROP': '-- DROP TABLE [{schema}].[{table}]',
       \   'DEPENDENCIES': "SELECT OBJECT_SCHEMA_NAME(referencing_id) AS ReferencingSchema, OBJECT_NAME(referencing_id) AS ReferencingObject, o.type_desc AS ReferencingType, OBJECT_SCHEMA_NAME(referenced_id) AS ReferencedSchema, OBJECT_NAME(referenced_id) AS ReferencedObject, o2.type_desc AS ReferencedType FROM sys.sql_expression_dependencies sed JOIN sys.objects o ON sed.referencing_id = o.object_id LEFT JOIN sys.objects o2 ON sed.referenced_id = o2.object_id WHERE sed.referencing_id = OBJECT_ID('[{schema}].[{table}]') OR sed.referenced_id = OBJECT_ID('[{schema}].[{table}]') ORDER BY ReferencingSchema, ReferencingObject",
       \ },
@@ -41,7 +40,6 @@ let s:object_helpers.sqlserver = {
 let s:object_helpers.postgresql = {
       \ 'table': {
       \   'SELECT': 'SELECT * FROM "{schema}"."{table}" LIMIT 100',
-      \   'ALTER': 'SELECT pg_get_viewdef(''{schema}.{table}''::regclass, true)',
       \   'DROP': '-- DROP TABLE "{schema}"."{table}"',
       \   'DEPENDENCIES': "SELECT DISTINCT dependent_ns.nspname as dependent_schema, dependent_view.relname as dependent_view, source_ns.nspname as source_schema, source_table.relname as source_table FROM pg_depend JOIN pg_rewrite ON pg_depend.objid = pg_rewrite.oid JOIN pg_class as dependent_view ON pg_rewrite.ev_class = dependent_view.oid JOIN pg_class as source_table ON pg_depend.refobjid = source_table.oid JOIN pg_namespace dependent_ns ON dependent_ns.oid = dependent_view.relnamespace JOIN pg_namespace source_ns ON source_ns.oid = source_table.relnamespace WHERE source_ns.nspname = '{schema}' AND source_table.relname = '{table}' ORDER BY dependent_schema, dependent_view",
       \ },
@@ -72,7 +70,6 @@ let s:object_helpers.postgresql = {
 let s:object_helpers.mysql = {
       \ 'table': {
       \   'SELECT': 'SELECT * FROM `{schema}`.`{table}` LIMIT 100',
-      \   'ALTER': 'SHOW CREATE TABLE `{schema}`.`{table}`',
       \   'DROP': '-- DROP TABLE `{schema}`.`{table}`',
       \   'DEPENDENCIES': '',
       \ },
