@@ -1028,7 +1028,7 @@ function! s:drawer.execute_object_action(item, edit_action) abort
         let temp_conn = db#connect(db_url)
 
         " Create a temporary db object for querying
-        query_connection = {
+        let query_connection = {
               \ 'conn': temp_conn,
               \ 'scheme': db.scheme,
               \ 'name': a:item.database_name
