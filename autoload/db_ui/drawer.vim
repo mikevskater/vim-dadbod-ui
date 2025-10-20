@@ -55,6 +55,12 @@ function! s:drawer.open(...) abort
   nnoremap <silent><buffer> <Plug>(DBUI_GotoParentNode) :call <sid>method('goto_node', 'parent')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_GotoChildNode) :call <sid>method('goto_node', 'child')<CR>
 
+  " Filter mappings
+  nnoremap <silent><buffer> <Plug>(DBUI_ApplyFilter) :call <sid>method('apply_filter')<CR>
+  nnoremap <silent><buffer> <Plug>(DBUI_ClearFilter) :call <sid>method('clear_filter')<CR>
+  nnoremap <silent><buffer> <Plug>(DBUI_ClearAllFilters) :call <sid>method('clear_all_filters')<CR>
+  nnoremap <silent><buffer> <Plug>(DBUI_ShowFilters) :call <sid>method('show_filters')<CR>
+
   nnoremap <silent><buffer> ? :call <sid>method('toggle_help')<CR>
   augroup db_ui
     autocmd! * <buffer>
@@ -528,36 +534,60 @@ function! s:drawer.render_object_types(server, database, level) abort
 endfunction
 
 function! s:drawer.render_object_type_group(server, database, label, object_type, object_data, level) abort
-  let count = len(a:object_data.list)
+  let total_items = len(a:object_data.list)
   let icon = self.get_toggle_icon('tables', a:object_data)
   let type_path = 'server->database->'.a:database.name.'->'.a:object_type
 
-  call self.add(a:label.' ('.count.')', 'toggle', type_path, icon, a:server.key_name, a:level, { 'expanded': a:object_data.expanded, 'database_name': a:database.name, 'object_type': a:object_type })
+  " Get filter for this object type
+  let scope = db_ui#filter#build_scope(a:server.key_name, a:database.name, a:object_type)
+  let filter = db_ui#filter#get(scope)
+
+  " Apply filter to get filtered list
+  let filtered_list = db_ui#filter#apply(a:object_data.list, filter)
+  let filtered_count = len(filtered_list)
+
+  " Build label with count and filter indicator
+  let count_str = filtered_count
+  if !empty(filter) && filtered_count != total_items
+    let count_str = filtered_count . '/' . total_items
+  endif
+
+  let filter_indicator = ''
+  if !empty(filter)
+    let filter_indicator = ' ' . g:db_ui_filter_icon . ' ' . db_ui#filter#format(filter)
+  endif
+
+  let full_label = a:label . ' (' . count_str . ')' . filter_indicator
+
+  call self.add(full_label, 'toggle', type_path, icon, a:server.key_name, a:level, { 'expanded': a:object_data.expanded, 'database_name': a:database.name, 'object_type': a:object_type })
 
   if !a:object_data.expanded
     return
   endif
 
-  " Handle empty object list
-  let total_items = len(a:object_data.list)
-  if total_items == 0
-    call self.add('(No '.a:label.')', 'noaction', 'info', '  ', a:server.key_name, a:level + 1, {})
+  " Handle empty filtered list
+  if filtered_count == 0
+    if !empty(filter)
+      call self.add('(No matches for filter)', 'noaction', 'info', '  ', a:server.key_name, a:level + 1, {})
+    else
+      call self.add('(No '.a:label.')', 'noaction', 'info', '  ', a:server.key_name, a:level + 1, {})
+    endif
     return
   endif
 
-  " Check if pagination is needed
+  " Check if pagination is needed (on filtered list)
   let max_per_page = g:db_ui_max_items_per_page
   let current_page = get(a:object_data, 'current_page', 1)
-  let needs_pagination = max_per_page > 0 && total_items > max_per_page
+  let needs_pagination = max_per_page > 0 && filtered_count > max_per_page
 
   if needs_pagination
     " Calculate pagination info
-    let total_pages = float2nr(ceil(total_items * 1.0 / max_per_page))
+    let total_pages = float2nr(ceil(filtered_count * 1.0 / max_per_page))
     let start_idx = (current_page - 1) * max_per_page
-    let end_idx = min([start_idx + max_per_page, total_items]) - 1
+    let end_idx = min([start_idx + max_per_page, filtered_count]) - 1
 
     " Show pagination info
-    let page_info = 'Page '.current_page.' of '.total_pages.' ('.total_items.' items)'
+    let page_info = 'Page '.current_page.' of '.total_pages.' ('.filtered_count.' items)'
     call self.add(page_info, 'noaction', 'info', '  ', a:server.key_name, a:level + 1, {})
 
     " Show previous page option if not on first page
@@ -566,12 +596,12 @@ function! s:drawer.render_object_type_group(server, database, label, object_type
     endif
   else
     let start_idx = 0
-    let end_idx = total_items - 1
+    let end_idx = filtered_count - 1
   endif
 
-  " Render individual objects (paginated slice)
+  " Render individual objects (filtered and paginated slice)
   for idx in range(start_idx, end_idx)
-    let object_name = a:object_data.list[idx]
+    let object_name = filtered_list[idx]
     let object_item = a:object_data.items[object_name]
     call self.add(object_name, 'toggle', type_path.'->'.object_name, self.get_toggle_icon('table', object_item), a:server.key_name, a:level + 1, { 'expanded': object_item.expanded, 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name })
 
@@ -615,11 +645,13 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     endif
 
     " Structural groups for tables
+    let filter_context = { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name }
+
     if g:db_ui_ssms_show_columns
       let columns_group = a:object_item.structural_groups.columns
       call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': columns_group.expanded })
       if columns_group.expanded
-        call self.render_structural_group_items(columns_group.data, 'columns', a:server.key_name, a:level + 1)
+        call self.render_structural_group_items(columns_group.data, 'columns', a:server.key_name, a:level + 1, filter_context)
       endif
     endif
 
@@ -627,7 +659,7 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
       let indexes_group = a:object_item.structural_groups.indexes
       call self.add('Indexes', 'toggle', 'structural_group', g:db_ui_icons.indexes, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'indexes', 'expanded': indexes_group.expanded })
       if indexes_group.expanded
-        call self.render_structural_group_items(indexes_group.data, 'indexes', a:server.key_name, a:level + 1)
+        call self.render_structural_group_items(indexes_group.data, 'indexes', a:server.key_name, a:level + 1, filter_context)
       endif
     endif
 
@@ -635,7 +667,7 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
       let keys_group = a:object_item.structural_groups.keys
       call self.add('Keys', 'toggle', 'structural_group', g:db_ui_icons.keys, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'keys', 'expanded': keys_group.expanded })
       if keys_group.expanded
-        call self.render_structural_group_items(keys_group.data, 'keys', a:server.key_name, a:level + 1)
+        call self.render_structural_group_items(keys_group.data, 'keys', a:server.key_name, a:level + 1, filter_context)
       endif
     endif
 
@@ -643,7 +675,7 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
       let constraints_group = a:object_item.structural_groups.constraints
       call self.add('Constraints', 'toggle', 'structural_group', g:db_ui_icons.constraints, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'constraints', 'expanded': constraints_group.expanded })
       if constraints_group.expanded
-        call self.render_structural_group_items(constraints_group.data, 'constraints', a:server.key_name, a:level + 1)
+        call self.render_structural_group_items(constraints_group.data, 'constraints', a:server.key_name, a:level + 1, filter_context)
       endif
     endif
 
@@ -661,6 +693,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
 
   elseif a:object_type ==# 'views'
     " Render view actions
+    let filter_context = { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name }
+
     if has_key(helpers, 'SELECT')
       call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'SELECT' })
     endif
@@ -669,7 +703,7 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
       let columns_group = a:object_item.structural_groups.columns
       call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': columns_group.expanded })
       if columns_group.expanded
-        call self.render_structural_group_items(columns_group.data, 'columns', a:server.key_name, a:level + 1)
+        call self.render_structural_group_items(columns_group.data, 'columns', a:server.key_name, a:level + 1, filter_context)
       endif
     endif
 
@@ -687,6 +721,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
 
   elseif a:object_type ==# 'procedures'
     " Render procedure actions
+    let filter_context = { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name }
+
     if has_key(helpers, 'EXEC')
       call self.add('EXEC', 'action', 'action', g:db_ui_icons.action_exec, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'EXEC' })
     endif
@@ -694,7 +730,7 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     let parameters_group = a:object_item.structural_groups.parameters
     call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': parameters_group.expanded })
     if parameters_group.expanded
-      call self.render_structural_group_items(parameters_group.data, 'parameters', a:server.key_name, a:level + 1)
+      call self.render_structural_group_items(parameters_group.data, 'parameters', a:server.key_name, a:level + 1, filter_context)
     endif
 
     if has_key(helpers, 'ALTER')
@@ -711,6 +747,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
 
   elseif a:object_type ==# 'functions'
     " Render function actions
+    let filter_context = { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name }
+
     if has_key(helpers, 'SELECT')
       call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'SELECT' })
     endif
@@ -718,7 +756,7 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     let parameters_group = a:object_item.structural_groups.parameters
     call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': parameters_group.expanded })
     if parameters_group.expanded
-      call self.render_structural_group_items(parameters_group.data, 'parameters', a:server.key_name, a:level + 1)
+      call self.render_structural_group_items(parameters_group.data, 'parameters', a:server.key_name, a:level + 1, filter_context)
     endif
 
     if has_key(helpers, 'ALTER')
@@ -735,9 +773,37 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
   endif
 endfunction
 
-function! s:drawer.render_structural_group_items(data, group_type, db_key_name, level) abort
+function! s:drawer.render_structural_group_items(data, group_type, db_key_name, level, ...) abort
   " Render individual items in a structural group with aligned columns
-  if empty(a:data)
+  " Optional context for filtering: {database_name, object_type, object_name}
+  let context = get(a:, 1, {})
+
+  " Apply filter if context is provided
+  let filtered_data = a:data
+  if !empty(context) && has_key(context, 'database_name') && has_key(context, 'object_type') && has_key(context, 'object_name')
+    let scope = db_ui#filter#build_structural_scope(a:db_key_name, context.database_name, context.object_type, context.object_name, a:group_type)
+    let filter = db_ui#filter#get(scope)
+
+    if !empty(filter) && has_key(filter, 'column')
+      " Filter rows by first column (name)
+      let filtered_data = []
+      for row in a:data
+        if type(row) ==? type([]) && len(row) > 0
+          let item_name = row[0]
+          if db_ui#filter#matches(item_name, {'column': filter.column})
+            call add(filtered_data, row)
+          endif
+        else
+          " Non-array row, match directly
+          if db_ui#filter#matches(row, {'column': filter.column})
+            call add(filtered_data, row)
+          endif
+        endif
+      endfor
+    endif
+  endif
+
+  if empty(filtered_data)
     call self.add('(No '.a:group_type.')', 'noaction', 'info', '', a:db_key_name, a:level)
     return
   endif
@@ -747,7 +813,7 @@ function! s:drawer.render_structural_group_items(data, group_type, db_key_name, 
   let formatted_rows = []
 
   " First pass: collect all rows and calculate max widths
-  for row in a:data
+  for row in filtered_data
     if type(row) ==? type([])
       " Ensure we have enough width slots
       while len(max_widths) < len(row)
@@ -1740,6 +1806,155 @@ function! s:drawer.render_db_level_object_items(db, object_name, object_type, le
     endif
   endif
 endfunction
+
+" ==============================================================================
+" Filter Functions
+" ==============================================================================
+
+" Apply or edit filter for current item
+function! s:drawer.apply_filter() abort
+  let item = self.get_current_item()
+
+  " Determine what type of item we're filtering
+  if item.type ==? 'toggle' && has_key(item, 'object_type') && !has_key(item, 'object_name')
+    " Object type group (TABLES, VIEWS, PROCEDURES, FUNCTIONS)
+    let scope = db_ui#filter#build_scope(item.dbui_db_key_name, item.database_name, item.object_type)
+    call s:prompt_object_type_filter(scope, item.object_type)
+    return self.render()
+
+  elseif item.type ==? 'structural_group'
+    " Structural group (Columns, Indexes, Keys, etc.)
+    let scope = db_ui#filter#build_structural_scope(item.dbui_db_key_name, item.database_name, item.object_type, item.object_name, item.group_type)
+    call s:prompt_structural_filter(scope, item.group_type)
+    return self.render()
+  else
+    call db_ui#notifications#info('Filtering is only available for object type groups and structural groups')
+  endif
+endfunction
+
+" Clear filter for current item
+function! s:drawer.clear_filter() abort
+  let item = self.get_current_item()
+
+  if item.type ==? 'toggle' && has_key(item, 'object_type') && !has_key(item, 'object_name')
+    " Object type group
+    let scope = db_ui#filter#build_scope(item.dbui_db_key_name, item.database_name, item.object_type)
+    if db_ui#filter#has_filter(scope)
+      call db_ui#filter#clear(scope)
+      call db_ui#notifications#info('Filter cleared for ' . item.object_type)
+      return self.render()
+    else
+      call db_ui#notifications#info('No filter active for ' . item.object_type)
+    endif
+
+  elseif item.type ==? 'structural_group'
+    " Structural group
+    let scope = db_ui#filter#build_structural_scope(item.dbui_db_key_name, item.database_name, item.object_type, item.object_name, item.group_type)
+    if db_ui#filter#has_filter(scope)
+      call db_ui#filter#clear(scope)
+      call db_ui#notifications#info('Filter cleared for ' . item.group_type)
+      return self.render()
+    else
+      call db_ui#notifications#info('No filter active for ' . item.group_type)
+    endif
+  else
+    call db_ui#notifications#info('No filter to clear')
+  endif
+endfunction
+
+" Clear all filters
+function! s:drawer.clear_all_filters() abort
+  let active = db_ui#filter#list_active()
+
+  if empty(active)
+    call db_ui#notifications#info('No active filters')
+    return
+  endif
+
+  call db_ui#filter#clear_all()
+  call db_ui#notifications#info('Cleared ' . len(active) . ' filter(s)')
+  return self.render()
+endfunction
+
+" Show all active filters
+function! s:drawer.show_filters() abort
+  let active = db_ui#filter#list_active()
+
+  if empty(active)
+    call db_ui#notifications#info('No active filters')
+    return
+  endif
+
+  let messages = ['Active filters (' . len(active) . '):']
+  for filter_item in active
+    let formatted = db_ui#filter#format(filter_item.criteria)
+    call add(messages, '  ' . filter_item.scope . ': ' . formatted)
+  endfor
+
+  call db_ui#notifications#info(messages)
+endfunction
+
+" Prompt for object type filter (tables, views, procedures, functions)
+function! s:prompt_object_type_filter(scope, object_type) abort
+  let existing = db_ui#filter#get(a:scope)
+
+  " Ask what to filter by
+  let choice = db_ui#utils#input('Filter ' . a:object_type . ' by: (s)chema, (o)bject, (b)oth, (c)lear: ', '')
+
+  if choice ==? 'c' || empty(choice)
+    call db_ui#filter#clear(a:scope)
+    call db_ui#notifications#info('Filter cleared')
+    return
+  endif
+
+  let filter = {}
+
+  try
+    if choice ==? 's' || choice ==? 'b'
+      let filter.schema = db_ui#utils#input('Schema filter (regex): ', get(existing, 'schema', ''))
+    endif
+
+    if choice ==? 'o' || choice ==? 'b'
+      let filter.object = db_ui#utils#input('Object filter (regex): ', get(existing, 'object', ''))
+    endif
+  catch /.*/
+    " User cancelled
+    return
+  endtry
+
+  " Only set filter if at least one criterion was provided
+  if !empty(get(filter, 'schema', '')) || !empty(get(filter, 'object', ''))
+    call db_ui#filter#set(a:scope, filter)
+    call db_ui#notifications#info('Filter applied')
+  else
+    call db_ui#notifications#info('Filter cancelled (no criteria provided)')
+  endif
+endfunction
+
+" Prompt for structural group filter (columns, indexes, etc.)
+function! s:prompt_structural_filter(scope, group_type) abort
+  let existing = db_ui#filter#get(a:scope)
+  let label = a:group_type ==? 'columns' ? 'column' : substitute(a:group_type, 's$', '', '')
+
+  try
+    let filter_value = db_ui#utils#input('Filter ' . label . ' name (regex): ', get(existing, 'column', ''))
+  catch /.*/
+    " User cancelled
+    return
+  endtry
+
+  if empty(filter_value)
+    call db_ui#filter#clear(a:scope)
+    call db_ui#notifications#info('Filter cleared')
+  else
+    call db_ui#filter#set(a:scope, {'column': filter_value})
+    call db_ui#notifications#info('Filter applied')
+  endif
+endfunction
+
+" ==============================================================================
+" Helper Functions
+" ==============================================================================
 
 function! s:drawer._is_schema_ignored(schema_name)
   for ignored_schema in g:db_ui_hide_schemas

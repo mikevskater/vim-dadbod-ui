@@ -52,6 +52,11 @@ let g:db_ui_cache_ttl = get(g:, 'db_ui_cache_ttl', 300)  " Cache TTL in seconds 
 let g:db_ui_max_items_per_page = get(g:, 'db_ui_max_items_per_page', 500)  " Pagination threshold
 let g:db_ui_show_loading_indicator = get(g:, 'db_ui_show_loading_indicator', 1)
 
+" Filter configuration
+let g:db_ui_filter_case_sensitive = get(g:, 'db_ui_filter_case_sensitive', 0)
+let g:db_ui_filter_use_regex = get(g:, 'db_ui_filter_use_regex', 1)
+let g:db_ui_filter_icon = get(g:, 'db_ui_filter_icon', '🔍')
+
 let s:dbui_icons = get(g:, 'db_ui_icons', {})
 let s:expanded_icon = get(s:dbui_icons, 'expanded', '▾')
 let s:collapsed_icon = get(s:dbui_icons, 'collapsed', '▸')
