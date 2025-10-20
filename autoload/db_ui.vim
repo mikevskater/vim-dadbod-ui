@@ -450,6 +450,27 @@ function! s:dbui.connect(db) abort
     return a:db
   endif
 
+  " For server-level connections in SSMS mode, we don't need a real db connection
+  " We'll connect to individual databases when they're expanded
+  if get(a:db, 'is_server', 0) && g:db_ui_use_ssms_style
+    try
+      let query_time = reltime()
+      call db_ui#notifications#info('Preparing server connection for '.a:db.name.'...')
+      " Populate schema info from the URL (without actual connection)
+      call self.populate_schema_info(a:db)
+      " Set a special marker to indicate server is ready
+      let a:db.conn = a:db.url
+      let a:db.conn_error = ''
+      call db_ui#notifications#info('Server connection prepared for '.a:db.name.' after '.split(reltimestr(reltime(query_time)))[0].' sec.')
+    catch /.*/
+      let a:db.conn_error = v:exception
+      let a:db.conn = ''
+      call db_ui#notifications#error('Error preparing server connection for '.a:db.name.': '.v:exception, {'width': 80 })
+    endtry
+    let a:db.conn_tried = 1
+    return a:db
+  endif
+
   try
     let query_time = reltime()
     call db_ui#notifications#info('Connecting to db '.a:db.name.'...')
@@ -531,7 +552,16 @@ function! s:dbui.populate_databases(server) abort
   try
     let query_time = reltime()
     call db_ui#notifications#info('Fetching databases from '.a:server.name.'...')
-    let result = db_ui#schemas#query_databases(a:server, scheme_info)
+
+    " For server-level queries, we need to connect to a system database
+    " Create a temporary connection with the appropriate system database
+    let system_db = self.get_system_database_for_listing(a:server.scheme)
+    let temp_url = self.build_database_url(a:server.url, system_db)
+    let temp_conn = db#connect(temp_url)
+
+    " Create a temporary db object for the query
+    let temp_db = {'conn': temp_conn, 'scheme': a:server.scheme}
+    let result = db_ui#schemas#query_databases(temp_db, scheme_info)
     let parsed_result = get(scheme_info, 'parse_results', {results, min -> results})(result, 1)
 
     let a:server.databases.list = []
@@ -557,6 +587,17 @@ function! s:dbui.populate_databases(server) abort
   catch /.*/
     call db_ui#notifications#error('Error fetching databases: '.v:exception)
   endtry
+endfunction
+
+function! s:dbui.get_system_database_for_listing(scheme) abort
+  " Returns the default system database to connect to for listing databases
+  let default_dbs = {
+        \ 'sqlserver': 'master',
+        \ 'postgresql': 'postgres',
+        \ 'mysql': 'information_schema',
+        \ 'mariadb': 'information_schema',
+        \ }
+  return get(default_dbs, a:scheme, 'master')
 endfunction
 
 function! s:dbui.is_system_database(scheme, db_name) abort

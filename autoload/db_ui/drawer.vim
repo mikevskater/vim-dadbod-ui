@@ -463,8 +463,19 @@ function! s:drawer.add_server(server) abort
     return a:server
   endif
 
-  " Render Databases group
-  call self.render_databases(a:server)
+  " Render sections based on g:db_ui_drawer_sections configuration (for server-level)
+  for section in g:db_ui_drawer_sections
+    if section ==# 'new_query'
+      call self._render_new_query_section(a:server)
+    elseif section ==# 'buffers' && !empty(a:server.buffers.list)
+      call self._render_buffers_section(a:server)
+    elseif section ==# 'saved_queries'
+      call self._render_saved_queries_section(a:server)
+    elseif section ==# 'schemas'
+      " For SSMS-style, render databases instead of schemas
+      call self.render_databases(a:server)
+    endif
+  endfor
 endfunction
 
 function! s:drawer.render_databases(server) abort
