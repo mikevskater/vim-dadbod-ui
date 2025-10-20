@@ -1131,12 +1131,16 @@ function! s:drawer.toggle_db_level_ssms_item(db, item, edit_action) abort
     return self.render()
   endif
 
-  " db->views->ViewName, db->procedures->ProcName, db->functions->FuncName
+  " db->tables->TableName, db->views->ViewName, db->procedures->ProcName, db->functions->FuncName
   if len(parts) == 3
     let object_type = parts[1]
     let object_name = parts[2]
 
-    if has_key(a:db.object_types, object_type) && has_key(a:db.object_types[object_type].items, object_name)
+    " Handle tables separately since they're in a:db.tables not a:db.object_types
+    if object_type ==# 'tables' && has_key(a:db.tables.items, object_name)
+      let table_item = a:db.tables.items[object_name]
+      let table_item.expanded = !table_item.expanded
+    elseif has_key(a:db.object_types, object_type) && has_key(a:db.object_types[object_type].items, object_name)
       let object_item = a:db.object_types[object_type].items[object_name]
       let object_item.expanded = !object_item.expanded
     endif
@@ -1259,13 +1263,19 @@ function! s:drawer.execute_object_action(item, edit_action) abort
   endif
 
   " For other actions (SELECT, EXEC, DROP, DEPENDENCIES), use the query as-is
-  " For server-level connections, prepend database context switch
-  " Only add USE statement if:
-  " 1. Item has database_name (from server-level navigation)
-  " 2. Connection has databases key (is server-level)
-  " 3. The database_name is actually a database in the databases list (not connection name)
+  " Prepend database context switch (USE statement)
+  let db_name_for_use = ''
+
+  " For server-level connections, use the database_name from item if it's valid
   if has_key(a:item, 'database_name') && has_key(db, 'databases') && has_key(db.databases.items, a:item.database_name)
-    let context_switch = self.get_database_context_switch(db.scheme, a:item.database_name)
+    let db_name_for_use = a:item.database_name
+  " For database-specific connections, use the db_name from the connection object
+  elseif has_key(db, 'db_name') && !empty(db.db_name) && db.db_name !=? db.name
+    let db_name_for_use = db.db_name
+  endif
+
+  if !empty(db_name_for_use)
+    let context_switch = self.get_database_context_switch(db.scheme, db_name_for_use)
     if !empty(context_switch)
       let sql = context_switch . "\n\n" . sql
     endif
