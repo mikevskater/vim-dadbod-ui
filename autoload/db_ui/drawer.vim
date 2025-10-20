@@ -1733,21 +1733,21 @@ endfunction
 function! s:drawer._render_schemas_section(db) abort
   " For SSMS-style mode on database-level connections, render object types
   if g:db_ui_use_ssms_style && has_key(a:db, 'object_types')
-    " Render TABLES
+    " Render TABLES - use same code as server-level connections
     let tables_count = len(a:db.tables.items)
     call self.add('TABLES ('.tables_count.')', 'toggle', 'db->tables', self.get_toggle_icon('tables', a:db.tables), a:db.key_name, 1, { 'expanded': a:db.tables.expanded })
     if a:db.tables.expanded
-      " Use SSMS-style rendering for tables (same as server-level connections)
       for table_name in a:db.tables.list
         let table_item = a:db.tables.items[table_name]
         call self.add(table_name, 'toggle', 'db->tables->'.table_name, self.get_toggle_icon('table', table_item), a:db.key_name, 2, { 'expanded': table_item.expanded })
         if table_item.expanded
-          call self.render_db_level_object_items(a:db, table_name, 'tables', 3)
+          " Reuse render_object_items from server-level - pass a:db as both server and database
+          call self.render_object_items(a:db, a:db, table_item, 'tables', 3)
         endif
       endfor
     endif
 
-    " Render VIEWS
+    " Render VIEWS - use same code as server-level connections
     let views_count = len(a:db.object_types.views.items)
     call self.add('VIEWS ('.views_count.')', 'toggle', 'db->views', self.get_toggle_icon('tables', a:db.object_types.views), a:db.key_name, 1, { 'expanded': a:db.object_types.views.expanded })
     if a:db.object_types.views.expanded
@@ -1755,12 +1755,12 @@ function! s:drawer._render_schemas_section(db) abort
         let view_item = a:db.object_types.views.items[view_name]
         call self.add(view_name, 'toggle', 'db->views->'.view_name, self.get_toggle_icon('table', view_item), a:db.key_name, 2, { 'expanded': view_item.expanded })
         if view_item.expanded
-          call self.render_db_level_object_items(a:db, view_name, 'views', 3)
+          call self.render_object_items(a:db, a:db, view_item, 'views', 3)
         endif
       endfor
     endif
 
-    " Render PROCEDURES
+    " Render PROCEDURES - use same code as server-level connections
     let procs_count = len(a:db.object_types.procedures.items)
     call self.add('PROCEDURES ('.procs_count.')', 'toggle', 'db->procedures', self.get_toggle_icon('tables', a:db.object_types.procedures), a:db.key_name, 1, { 'expanded': a:db.object_types.procedures.expanded })
     if a:db.object_types.procedures.expanded
@@ -1768,12 +1768,12 @@ function! s:drawer._render_schemas_section(db) abort
         let proc_item = a:db.object_types.procedures.items[proc_name]
         call self.add(proc_name, 'toggle', 'db->procedures->'.proc_name, self.get_toggle_icon('table', proc_item), a:db.key_name, 2, { 'expanded': proc_item.expanded })
         if proc_item.expanded
-          call self.render_db_level_object_items(a:db, proc_name, 'procedures', 3)
+          call self.render_object_items(a:db, a:db, proc_item, 'procedures', 3)
         endif
       endfor
     endif
 
-    " Render FUNCTIONS
+    " Render FUNCTIONS - use same code as server-level connections
     let funcs_count = len(a:db.object_types.functions.items)
     call self.add('FUNCTIONS ('.funcs_count.')', 'toggle', 'db->functions', self.get_toggle_icon('tables', a:db.object_types.functions), a:db.key_name, 1, { 'expanded': a:db.object_types.functions.expanded })
     if a:db.object_types.functions.expanded
@@ -1781,7 +1781,7 @@ function! s:drawer._render_schemas_section(db) abort
         let func_item = a:db.object_types.functions.items[func_name]
         call self.add(func_name, 'toggle', 'db->functions->'.func_name, self.get_toggle_icon('table', func_item), a:db.key_name, 2, { 'expanded': func_item.expanded })
         if func_item.expanded
-          call self.render_db_level_object_items(a:db, func_name, 'functions', 3)
+          call self.render_object_items(a:db, a:db, func_item, 'functions', 3)
         endif
       endfor
     endif
