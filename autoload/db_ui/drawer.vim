@@ -1016,29 +1016,39 @@ function! s:drawer.execute_object_action(item, edit_action) abort
 
   " For ALTER action, execute the query and populate buffer with the result
   if a:item.action_type ==# 'ALTER'
-    " For server-level connections, prepend database context switch
-    if has_key(a:item, 'database_name') && has_key(db, 'databases')
-      let context_switch = self.get_database_context_switch(db.scheme, a:item.database_name)
-      if !empty(context_switch)
-        let sql = context_switch . "\n\n" . sql
-      endif
-    endif
-
     " Execute the query to get the object definition
     try
-      " For server-level connections, we need to use the db (server) connection
-      " For database-level connections, database and db are the same
-      let connection = has_key(database, 'conn') ? database : db
+      " For server-level connections, we need to connect to the specific database
+      " For database-level connections, use the existing connection
+      let query_connection = db
 
-      " Use db#systemlist to execute the query
-      let scheme_info = db_ui#schemas#get(connection.scheme)
-      let result = db_ui#schemas#query(connection, scheme_info, sql)
+      if has_key(a:item, 'database_name') && has_key(db, 'databases')
+        " Build a database-specific connection URL
+        let db_url = self.dbui.build_database_url(db.url, a:item.database_name)
+        let temp_conn = db#connect(db_url)
+
+        " Create a temporary db object for querying
+        query_connection = {
+              \ 'conn': temp_conn,
+              \ 'scheme': db.scheme,
+              \ 'name': a:item.database_name
+              \ }
+      endif
+
+      " Use db#systemlist to execute the query (without USE statement for temp connection)
+      let scheme_info = db_ui#schemas#get(query_connection.scheme)
+      let result = db_ui#schemas#query(query_connection, scheme_info, sql)
+
+      " Debug: Log the raw result
+      call db_ui#utils#print_debug({ 'message': 'ALTER query result', 'lines': len(result), 'first_10': result[0:min([9, len(result)-1])] })
 
       " Parse the result to extract the definition
       let definition = self.parse_alter_result(result, database.scheme)
 
       if empty(definition)
-        return db_ui#notifications#error('Could not retrieve definition for '.a:item.object_name)
+        " Debug: show raw result
+        call db_ui#utils#print_debug({ 'message': 'ALTER result', 'data': result })
+        return db_ui#notifications#error('Could not retrieve definition for '.a:item.object_name.'. Result lines: '.len(result))
       endif
 
       " Create buffer with the object definition
@@ -1089,30 +1099,44 @@ function! s:drawer.parse_alter_result(result, scheme) abort
 
   " For SQL Server, the result format varies by query type
   if scheme =~? '^sqlserver' || scheme =~? '^mssql'
-    " SQL Server returns definition in first data row
-    " Skip header lines and extract the definition
+    " SQL Server sys.sql_modules returns definition in a single-column result
+    " Format: header, separator line, data rows
     let definition_lines = []
-    let in_data = 0
+    let found_separator = 0
+    let header_count = 0
 
     for line in a:result
       " Skip separator lines (-----)
-      if line =~? '^-\+$'
-        let in_data = 1
+      if line =~? '^-\+$' || line =~? '^-\+\s*$'
+        let found_separator = 1
         continue
       endif
 
-      " Skip empty lines at start
-      if !in_data && empty(trim(line))
+      " Skip header line (column name)
+      if !found_separator
+        let header_count += 1
         continue
       endif
 
-      " Collect data lines
-      if in_data && !empty(trim(line))
+      " After separator, collect all non-empty lines
+      " The definition might span multiple lines or be in a single line
+      let trimmed = trim(line)
+      if !empty(trimmed)
         call add(definition_lines, line)
       endif
     endfor
 
-    return join(definition_lines, "\n")
+    " If we have definition lines, join them
+    if !empty(definition_lines)
+      return join(definition_lines, "\n")
+    endif
+
+    " Fallback: if no data after separator, try to get everything after first 2 lines
+    if len(a:result) > 2
+      return join(a:result[2:], "\n")
+    endif
+
+    return ''
   elseif scheme =~? '^postgres'
     " PostgreSQL pg_get_viewdef/pg_get_functiondef returns clean definition
     " Skip header and separator, get the definition
