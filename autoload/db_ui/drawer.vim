@@ -1521,7 +1521,17 @@ function! s:drawer.populate_tables(db) abort
 
         " For SQL Server: Filter by database name and exclude system objects
         elseif (a:db.scheme =~? '^sqlserver' || a:db.scheme =~? '^mssql')
-          if has_key(a:db, 'databases')
+          " Determine if this is server-level mode or database-specific
+          " Server-level: has 'databases' key AND we're querying a specific database (has parent server)
+          " Database-specific: connection URL has database in path, INFORMATION_SCHEMA is already scoped
+          let is_server_level = has_key(a:db, 'databases') && has_key(a:db, 'databases') && !empty(get(a:db, 'save_path', ''))
+
+          " Better check: if url contains database path (e.g., sqlserver://server/database)
+          " Database-specific connections have the database in the URL
+          let conn_url = string(a:db.conn)
+          let has_db_in_url = conn_url =~# 'sqlserver://[^/]*/[^''"]'
+
+          if has_key(a:db, 'databases') && !has_db_in_url
             " Server-level mode: filter by TABLE_CATALOG (database name)
             let query = query . ' WHERE TABLE_CATALOG = ''' . a:db.name . ''' AND TABLE_TYPE = ''BASE TABLE'''
           else
@@ -1727,7 +1737,14 @@ function! s:drawer._render_schemas_section(db) abort
     let tables_count = len(a:db.tables.items)
     call self.add('TABLES ('.tables_count.')', 'toggle', 'db->tables', self.get_toggle_icon('tables', a:db.tables), a:db.key_name, 1, { 'expanded': a:db.tables.expanded })
     if a:db.tables.expanded
-      call self.render_tables(a:db.tables, a:db, 'tables->items', 2, '')
+      " Use SSMS-style rendering for tables (same as server-level connections)
+      for table_name in a:db.tables.list
+        let table_item = a:db.tables.items[table_name]
+        call self.add(table_name, 'toggle', 'db->tables->'.table_name, self.get_toggle_icon('table', table_item), a:db.key_name, 2, { 'expanded': table_item.expanded })
+        if table_item.expanded
+          call self.render_db_level_object_items(a:db, table_name, 'tables', 3)
+        endif
+      endfor
     endif
 
     " Render VIEWS
