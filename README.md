@@ -18,6 +18,7 @@ Tested on Linux, Mac and Windows, Vim 8.1+ and Neovim.
 
 Features:
 * Navigate through multiple databases and it's tables and schemas
+* **SSMS-Style Server Browser**: Connect to servers and browse all databases (SQL Server, PostgreSQL, MySQL)
 * Several ways to define your connections
 * Save queries on single location for later use
 * Define custom table helpers
@@ -26,6 +27,7 @@ Features:
 * Jump to foreign keys from the dadbod output (see `:help <Plug>(DBUI_JumpToForeignKey)`)
 * Support for nerd fonts (see `:help g:db_ui_use_nerd_fonts`)
 * Async query execution
+* **Performance Optimization**: Query caching and pagination for large databases
 
 ## Installation
 
@@ -156,6 +158,101 @@ It is possible to have two connections with same name, but from different source
 for example, you can have `my-db` in env variable, in `g:dbs` and in saved connections.
 To view from which source the database is, press `H` in drawer.
 If there are duplicate connection names from same source, warning will be shown and first one added will be preserved.
+
+### SSMS-Style Server-Level Connections
+
+vim-dadbod-ui supports SSMS-style server-level connections, allowing you to connect to a database server and browse all databases, similar to SQL Server Management Studio (SSMS).
+
+#### Enabling SSMS-Style Mode
+
+Add this to your configuration:
+
+```vim
+let g:db_ui_use_ssms_style = 1
+```
+
+Or in Lua:
+
+```lua
+vim.g.db_ui_use_ssms_style = 1
+```
+
+#### Server-Level Connection Examples
+
+Connect to a server without specifying a database:
+
+```vim
+" VimL
+let g:dbs = {
+\ 'dev_server': 'sqlserver://localhost',
+\ 'pg_server': 'postgresql://localhost:5432',
+\ 'mysql_server': 'mysql://root@localhost'
+\ }
+```
+
+```lua
+-- Lua
+vim.g.dbs = {
+  { name = 'dev_server', url = 'sqlserver://localhost' },
+  { name = 'pg_server', url = 'postgresql://localhost:5432' },
+  { name = 'mysql_server', url = 'mysql://root@localhost' },
+}
+```
+
+#### SSMS-Style Features
+
+When enabled, server-level connections provide:
+
+- **Database Browsing**: Expand server to see all databases
+- **Object Types**: Each database shows TABLES, VIEWS, PROCEDURES, FUNCTIONS
+- **Schema Prefix**: Objects displayed as `[schema].[name]`
+- **Quick Actions**: SELECT, EXEC, ALTER, DROP, DEPENDENCIES
+- **Structural Info**: Columns, Indexes, Keys, Constraints, Parameters
+- **ALTER Auto-Fetch**: Click ALTER to automatically load object definition for editing
+- **Database Context**: Queries automatically use correct database context
+
+#### Performance Features
+
+For large databases (500+ objects), automatic performance optimizations:
+
+- **Query Caching**: Results cached for 5 minutes (configurable)
+- **Pagination**: Large object lists automatically paginated
+- **Loading Indicators**: Visual feedback during slow operations
+
+```vim
+" Performance configuration (optional)
+let g:db_ui_cache_enabled = 1          " Enable caching (default: 1)
+let g:db_ui_cache_ttl = 300            " Cache TTL in seconds (default: 300)
+let g:db_ui_max_items_per_page = 500  " Pagination threshold (default: 500)
+let g:db_ui_show_loading_indicator = 1 " Show loading messages (default: 1)
+```
+
+Clear cache when needed:
+
+```vim
+:DBUIClearCache              " Clear all cached results
+:DBUIClearCacheFor mydb      " Clear cache for specific database
+```
+
+#### Backward Compatibility
+
+SSMS-style mode is **opt-in**. When disabled (default), the plugin works in traditional database-level mode. Both modes can be used simultaneously:
+
+```vim
+let g:db_ui_use_ssms_style = 1
+
+let g:dbs = {
+\ 'dev_server': 'sqlserver://localhost',        " SSMS-style: browse all databases
+\ 'myapp_db': 'sqlserver://localhost/myapp',    " Traditional: single database
+\ }
+```
+
+#### Supported Databases
+
+SSMS-style mode works with:
+- **SQL Server** (primary target, full feature support)
+- **PostgreSQL** (full support)
+- **MySQL/MariaDB** (full support)
 
 ## Settings
 
