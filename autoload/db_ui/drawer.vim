@@ -1168,7 +1168,28 @@ endfunction
 function! s:drawer.populate_table_items(tables) abort
   for table in a:tables.list
     if !has_key(a:tables.items, table)
-      let a:tables.items[table] = {'expanded': 0 }
+      " Parse schema and name from table (format: [schema].[name] or just name)
+      let parts = split(table, '\.')
+      let schema_name = len(parts) > 1 ? substitute(parts[0], '^\[', '', '') : 'dbo'
+      let schema_name = substitute(schema_name, '\]$', '', '')
+      let object_name = len(parts) > 1 ? substitute(parts[1], '^\[', '', '') : table
+      let object_name = substitute(object_name, '\]$', '', '')
+
+      let a:tables.items[table] = {
+            \ 'schema': schema_name,
+            \ 'name': object_name,
+            \ 'full_name': table,
+            \ 'expanded': 0,
+            \ 'structural_groups': {
+            \   'columns': {'expanded': 0, 'data': []},
+            \   'indexes': {'expanded': 0, 'data': []},
+            \   'keys': {'expanded': 0, 'data': []},
+            \   'primary_keys': {'expanded': 0, 'data': []},
+            \   'foreign_keys': {'expanded': 0, 'data': []},
+            \   'constraints': {'expanded': 0, 'data': []},
+            \   'parameters': {'expanded': 0, 'data': []},
+            \ },
+            \ }
     endif
   endfor
 endfunction
