@@ -566,7 +566,7 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
   if a:object_type ==# 'tables'
     " Render table actions and structural groups
     if has_key(helpers, 'SELECT')
-      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'SELECT' })
     endif
 
     " Structural groups for tables
@@ -603,21 +603,21 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     endif
 
     if has_key(helpers, 'ALTER')
-      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'ALTER' })
     endif
 
     if has_key(helpers, 'DROP')
-      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DROP' })
     endif
 
     if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
-      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DEPENDENCIES' })
     endif
 
   elseif a:object_type ==# 'views'
     " Render view actions
     if has_key(helpers, 'SELECT')
-      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'SELECT' })
     endif
 
     if g:db_ui_ssms_show_columns
@@ -629,21 +629,21 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     endif
 
     if has_key(helpers, 'ALTER')
-      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'ALTER' })
     endif
 
     if has_key(helpers, 'DROP')
-      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DROP' })
     endif
 
     if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
-      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DEPENDENCIES' })
     endif
 
   elseif a:object_type ==# 'procedures'
     " Render procedure actions
     if has_key(helpers, 'EXEC')
-      call self.add('EXEC', 'action', 'action', g:db_ui_icons.action_exec, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'EXEC' })
+      call self.add('EXEC', 'action', 'action', g:db_ui_icons.action_exec, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'EXEC' })
     endif
 
     let parameters_group = a:object_item.structural_groups.parameters
@@ -653,21 +653,21 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     endif
 
     if has_key(helpers, 'ALTER')
-      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'ALTER' })
     endif
 
     if has_key(helpers, 'DROP')
-      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DROP' })
     endif
 
     if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
-      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DEPENDENCIES' })
     endif
 
   elseif a:object_type ==# 'functions'
     " Render function actions
     if has_key(helpers, 'SELECT')
-      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'SELECT' })
     endif
 
     let parameters_group = a:object_item.structural_groups.parameters
@@ -677,15 +677,15 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     endif
 
     if has_key(helpers, 'ALTER')
-      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'ALTER' })
     endif
 
     if has_key(helpers, 'DROP')
-      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DROP' })
     endif
 
     if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
-      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DEPENDENCIES' })
     endif
   endif
 endfunction
@@ -1008,17 +1008,17 @@ function! s:drawer.execute_object_action(item, edit_action) abort
         \ }
 
   " Get the SQL template for this action
-  let sql = db_ui#object_helpers#get_action(database.scheme, a:item.object_type, a:item.action, vars)
+  let sql = db_ui#object_helpers#get_action(database.scheme, a:item.object_type, a:item.action_type, vars)
 
   if empty(sql)
-    return db_ui#notifications#error('No action template found for '.a:item.action.' on '.a:item.object_type)
+    return db_ui#notifications#error('No action template found for '.a:item.action_type.' on '.a:item.object_type)
   endif
 
   " Create a buffer item to open the query
   let buffer_item = {
         \ 'action': 'open',
         \ 'type': 'query',
-        \ 'label': a:item.action.' - '.a:item.object_name,
+        \ 'label': a:item.action_type.' - '.a:item.object_name,
         \ 'dbui_db_key_name': database.key_name,
         \ 'content': sql,
         \ }
@@ -1381,7 +1381,7 @@ function! s:drawer.render_db_level_object_items(db, object_name, object_type, le
   " Render actions based on object type (same logic as render_object_items but for db-level)
   if a:object_type ==# 'views'
     if has_key(helpers, 'SELECT')
-      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'SELECT' })
     endif
 
     if g:db_ui_ssms_show_columns
@@ -1389,53 +1389,53 @@ function! s:drawer.render_db_level_object_items(db, object_name, object_type, le
     endif
 
     if has_key(helpers, 'ALTER')
-      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'ALTER' })
     endif
 
     if has_key(helpers, 'DROP')
-      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'DROP' })
     endif
 
     if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
-      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'DEPENDENCIES' })
     endif
 
   elseif a:object_type ==# 'procedures'
     if has_key(helpers, 'EXEC')
-      call self.add('EXEC', 'action', 'action', g:db_ui_icons.action_exec, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'EXEC' })
+      call self.add('EXEC', 'action', 'action', g:db_ui_icons.action_exec, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'EXEC' })
     endif
 
     call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': 0 })
 
     if has_key(helpers, 'ALTER')
-      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'ALTER' })
     endif
 
     if has_key(helpers, 'DROP')
-      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'DROP' })
     endif
 
     if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
-      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'DEPENDENCIES' })
     endif
 
   elseif a:object_type ==# 'functions'
     if has_key(helpers, 'SELECT')
-      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'SELECT' })
     endif
 
     call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': 0 })
 
     if has_key(helpers, 'ALTER')
-      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'ALTER' })
     endif
 
     if has_key(helpers, 'DROP')
-      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'DROP' })
     endif
 
     if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
-      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action_type': 'DEPENDENCIES' })
     endif
   endif
 endfunction
