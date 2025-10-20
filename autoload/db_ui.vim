@@ -761,7 +761,7 @@ function! s:dbui.populate_structural_group(database, schema, object_name, group_
       let min_columns = 2  " constraint_name, type
     elseif a:group_type ==# 'parameters'
       let result = db_ui#schemas#query_parameters(a:database, scheme_info, a:schema, a:object_name)
-      let min_columns = 3  " param_name, data_type, mode
+      let min_columns = 4  " param_name, data_type, mode, max_length
     endif
 
     let parsed_result = get(scheme_info, 'parse_results', {results, min -> results})(result, min_columns)
