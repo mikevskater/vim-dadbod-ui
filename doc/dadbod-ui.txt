@@ -132,6 +132,26 @@ DBUIHideNotifications
 
 		`:DBUIHideNotifications`
 
+					      *DBUIClearCache*
+DBUIClearCache
+		Clear all cached database query results. This forces the
+		plugin to fetch fresh data from the database on the next
+		operation. Useful when database schema has changed or
+		when you want to ensure you're seeing the latest data.
+
+		See |g:db_ui_cache_enabled| for cache configuration.
+
+		`:DBUIClearCache`
+
+					      *DBUIClearCacheFor*
+DBUIClearCacheFor {database_name}
+		Clear cached query results for a specific database. Use
+		this when only one database has changed and you don't
+		want to invalidate the entire cache.
+
+		Example:
+		`:DBUIClearCacheFor mydb`
+
 ==============================================================================
 4. Connections 					*vim-dadbod-ui-connections*
 
@@ -1015,6 +1035,58 @@ g:db_ui_ssms_show_constraints
 g:db_ui_ssms_show_keys
 		When enabled, shows Keys (Primary Keys and Foreign Keys)
 		structural info for tables in SSMS-style mode.
+
+		Default value: `1`
+
+					      *g:db_ui_cache_enabled*
+g:db_ui_cache_enabled
+		When enabled, database query results are cached with TTL
+		(time-to-live) expiration. This dramatically improves
+		performance for repeated operations, especially with large
+		databases. Cache is transparent and updates automatically
+		when TTL expires.
+
+		Use |:DBUIClearCache| to manually clear all cached results,
+		or |:DBUIClearCacheFor| to clear cache for a specific database.
+
+		Default value: `1`
+
+					      *g:db_ui_cache_ttl*
+g:db_ui_cache_ttl
+		Cache time-to-live in seconds. Query results are cached
+		and reused within this time window. After expiration, the
+		next query will fetch fresh data from the database.
+
+		Recommended values:
+		- `60` (1 minute) - Frequently changing data
+		- `300` (5 minutes) - Default, good balance
+		- `600` (10 minutes) - Stable data
+		- `1800` (30 minutes) - Very stable reference data
+
+		Default value: `300` (5 minutes)
+
+					      *g:db_ui_max_items_per_page*
+g:db_ui_max_items_per_page
+		Maximum number of objects (tables, views, procedures,
+		functions) to show per page. When an object list exceeds
+		this threshold, pagination controls ("◀ Previous Page" and
+		"Next Page ▶") appear in the drawer.
+
+		This prevents UI lag when working with databases that have
+		hundreds or thousands of objects.
+
+		Set to `0` to disable pagination entirely.
+
+		Default value: `500`
+
+					      *g:db_ui_show_loading_indicator*
+g:db_ui_show_loading_indicator
+		When enabled, shows "Loading database objects..." message
+		during query execution. This provides feedback during slow
+		operations, especially useful for large databases or slow
+		network connections.
+
+		The message automatically clears when the query completes.
 
 		Default value: `1`
 
