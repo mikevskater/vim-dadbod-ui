@@ -538,8 +538,34 @@ function! s:drawer.render_object_type_group(server, database, label, object_type
     return
   endif
 
-  " Render individual objects
-  for object_name in a:object_data.list
+  " Check if pagination is needed
+  let max_per_page = g:db_ui_max_items_per_page
+  let total_items = len(a:object_data.list)
+  let current_page = get(a:object_data, 'current_page', 1)
+  let needs_pagination = total_items > max_per_page
+
+  if needs_pagination
+    " Calculate pagination info
+    let total_pages = float2nr(ceil(total_items * 1.0 / max_per_page))
+    let start_idx = (current_page - 1) * max_per_page
+    let end_idx = min([start_idx + max_per_page, total_items]) - 1
+
+    " Show pagination info
+    let page_info = 'Page '.current_page.' of '.total_pages.' ('.total_items.' items)'
+    call self.add(page_info, 'noaction', 'info', '  ', a:server.key_name, a:level + 1, {})
+
+    " Show previous page option if not on first page
+    if current_page > 1
+      call self.add('◀ Previous Page', 'pagination', 'pagination_prev', '◀', a:server.key_name, a:level + 1, { 'database_name': a:database.name, 'object_type': a:object_type, 'direction': 'prev' })
+    endif
+  else
+    let start_idx = 0
+    let end_idx = total_items - 1
+  endif
+
+  " Render individual objects (paginated slice)
+  for idx in range(start_idx, end_idx)
+    let object_name = a:object_data.list[idx]
     let object_item = a:object_data.items[object_name]
     call self.add(object_name, 'toggle', type_path.'->'.object_name, self.get_toggle_icon('table', object_item), a:server.key_name, a:level + 1, { 'expanded': object_item.expanded, 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name })
 
@@ -548,6 +574,13 @@ function! s:drawer.render_object_type_group(server, database, label, object_type
       call self.render_object_items(a:server, a:database, object_item, a:object_type, a:level + 2)
     endif
   endfor
+
+  if needs_pagination
+    " Show next page option if not on last page
+    if current_page < total_pages
+      call self.add('Next Page ▶', 'pagination', 'pagination_next', '▶', a:server.key_name, a:level + 1, { 'database_name': a:database.name, 'object_type': a:object_type, 'direction': 'next' })
+    endif
+  endif
 endfunction
 
 function! s:drawer.render_object_items(server, database, object_item, object_type, level) abort
@@ -806,6 +839,11 @@ function! s:drawer.toggle_line(edit_action) abort
     return self.execute_object_action(item, a:edit_action)
   endif
 
+  " Handle pagination actions
+  if item.action ==? 'pagination'
+    return self.handle_pagination(item)
+  endif
+
   let db = self.dbui.dbs[item.dbui_db_key_name]
 
   " Handle SSMS-style structural groups (Columns, Indexes, etc.)
@@ -903,6 +941,41 @@ function! s:drawer.toggle_ssms_item(server, item, edit_action) abort
     endif
 
     return self.render()
+  endif
+
+  return self.render()
+endfunction
+
+function! s:drawer.handle_pagination(item) abort
+  let db = self.dbui.dbs[a:item.dbui_db_key_name]
+  let db_name = a:item.database_name
+  let object_type = a:item.object_type
+  let direction = a:item.direction
+
+  " Determine if server-level or database-level connection
+  if has_key(db, 'databases') && has_key(db.databases.items, db_name)
+    " Server-level connection
+    let database = db.databases.items[db_name]
+    if object_type ==# 'tables'
+      let object_data = database.tables
+    else
+      let object_data = database.object_types[object_type]
+    endif
+  else
+    " Database-level connection
+    if object_type ==# 'tables'
+      let object_data = db.tables
+    else
+      let object_data = db.object_types[object_type]
+    endif
+  endif
+
+  " Update current page
+  let current_page = get(object_data, 'current_page', 1)
+  if direction ==# 'next'
+    let object_data.current_page = current_page + 1
+  elseif direction ==# 'prev'
+    let object_data.current_page = max([1, current_page - 1])
   endif
 
   return self.render()

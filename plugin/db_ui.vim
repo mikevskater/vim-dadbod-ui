@@ -46,6 +46,12 @@ let g:db_ui_ssms_show_indexes = get(g:, 'db_ui_ssms_show_indexes', 1)
 let g:db_ui_ssms_show_constraints = get(g:, 'db_ui_ssms_show_constraints', 1)
 let g:db_ui_ssms_show_keys = get(g:, 'db_ui_ssms_show_keys', 1)
 
+" Performance optimization configuration
+let g:db_ui_cache_enabled = get(g:, 'db_ui_cache_enabled', 1)
+let g:db_ui_cache_ttl = get(g:, 'db_ui_cache_ttl', 300)  " Cache TTL in seconds (default: 5 minutes)
+let g:db_ui_max_items_per_page = get(g:, 'db_ui_max_items_per_page', 500)  " Pagination threshold
+let g:db_ui_show_loading_indicator = get(g:, 'db_ui_show_loading_indicator', 1)
+
 let s:dbui_icons = get(g:, 'db_ui_icons', {})
 let s:expanded_icon = get(s:dbui_icons, 'expanded', '▾')
 let s:collapsed_icon = get(s:dbui_icons, 'collapsed', '▸')
@@ -172,3 +178,5 @@ command! DBUIAddConnection call db_ui#connections#add()
 command! DBUIFindBuffer call db_ui#find_buffer()
 command! DBUIRenameBuffer call db_ui#rename_buffer()
 command! DBUILastQueryInfo call db_ui#print_last_query_info()
+command! DBUIClearCache call db_ui#schemas#clear_cache()
+command! -nargs=1 DBUIClearCacheFor call db_ui#schemas#clear_cache_for(<f-args>)

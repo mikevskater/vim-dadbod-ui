@@ -1,3 +1,73 @@
+" ==============================================================================
+" Query Result Caching System
+" ==============================================================================
+
+" Cache storage: { 'cache_key': { 'data': [...], 'timestamp': 12345 } }
+let s:query_cache = {}
+
+" Generate a unique cache key from query parameters
+function! s:generate_cache_key(db, query) abort
+  let db_name = type(a:db) == v:t_string ? a:db : get(a:db, 'name', 'unknown')
+  let query_hash = string(a:query)
+  return db_name . '|' . query_hash
+endfunction
+
+" Check if cached result is still valid (within TTL)
+function! s:is_cache_valid(cache_key) abort
+  if !has_key(s:query_cache, a:cache_key)
+    return 0
+  endif
+
+  let cache_entry = s:query_cache[a:cache_key]
+  let current_time = localtime()
+  let age = current_time - cache_entry.timestamp
+  let ttl = get(g:, 'db_ui_cache_ttl', 300)  " Default: 5 minutes
+
+  return age < ttl
+endfunction
+
+" Get cached result if valid
+function! s:get_cached_result(cache_key) abort
+  if s:is_cache_valid(a:cache_key)
+    return s:query_cache[a:cache_key].data
+  endif
+  return []
+endfunction
+
+" Store result in cache
+function! s:cache_result(cache_key, result) abort
+  let s:query_cache[a:cache_key] = {
+        \ 'data': a:result,
+        \ 'timestamp': localtime()
+        \ }
+endfunction
+
+" Clear all cache entries
+function! db_ui#schemas#clear_cache() abort
+  let s:query_cache = {}
+  echom 'Database query cache cleared'
+endfunction
+
+" Clear cache for specific database
+function! db_ui#schemas#clear_cache_for(db_name) abort
+  let keys_to_remove = []
+  for key in keys(s:query_cache)
+    if key =~# '^' . a:db_name . '|'
+      call add(keys_to_remove, key)
+    endif
+  endfor
+
+  for key in keys_to_remove
+    unlet s:query_cache[key]
+  endfor
+
+  echom 'Cache cleared for database: ' . a:db_name
+endfunction
+
+" ==============================================================================
+" Helper Functions
+" ==============================================================================
+
 function! s:strip_quotes(results) abort
   return split(substitute(join(a:results),'"','','g'))
 endfunction
@@ -498,8 +568,40 @@ function! s:format_query(db, scheme, query) abort
 endfunction
 
 function! db_ui#schemas#query(db, scheme, query) abort
+  " Check if caching is enabled
+  let cache_enabled = get(g:, 'db_ui_cache_enabled', 1)
+
+  if cache_enabled
+    " Generate cache key
+    let cache_key = s:generate_cache_key(a:db, a:query)
+
+    " Try to get cached result
+    let cached_result = s:get_cached_result(cache_key)
+    if !empty(cached_result) || s:is_cache_valid(cache_key)
+      return cached_result
+    endif
+  endif
+
+  " Show loading indicator if enabled
+  if g:db_ui_show_loading_indicator
+    echom 'Loading database objects...'
+  endif
+
+  " Execute query if not cached or cache disabled
   let result = call('db#systemlist', s:format_query(a:db, a:scheme, a:query))
-  return map(result, {_, val -> substitute(val, "\r$", "", "")})
+  let result = map(result, {_, val -> substitute(val, "\r$", "", "")})
+
+  " Store in cache if enabled
+  if cache_enabled
+    call s:cache_result(cache_key, result)
+  endif
+
+  " Clear loading indicator
+  if g:db_ui_show_loading_indicator
+    echo ''
+  endif
+
+  return result
 endfunction
 
 function db_ui#schemas#supports_schemes(scheme, parsed_url)
