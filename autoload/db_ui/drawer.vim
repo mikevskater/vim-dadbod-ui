@@ -1026,7 +1026,13 @@ function! s:drawer.execute_object_action(item, edit_action) abort
 
     " Execute the query to get the object definition
     try
-      let result = db#query(db.conn, sql)
+      " For server-level connections, we need to use the db (server) connection
+      " For database-level connections, database and db are the same
+      let connection = has_key(database, 'conn') ? database : db
+
+      " Use db#systemlist to execute the query
+      let scheme_info = db_ui#schemas#get(connection.scheme)
+      let result = db_ui#schemas#query(connection, scheme_info, sql)
 
       " Parse the result to extract the definition
       let definition = self.parse_alter_result(result, database.scheme)
