@@ -538,11 +538,17 @@ function! s:drawer.render_object_type_group(server, database, label, object_type
     return
   endif
 
+  " Handle empty object list
+  let total_items = len(a:object_data.list)
+  if total_items == 0
+    call self.add('(No '.a:label.')', 'noaction', 'info', '  ', a:server.key_name, a:level + 1, {})
+    return
+  endif
+
   " Check if pagination is needed
   let max_per_page = g:db_ui_max_items_per_page
-  let total_items = len(a:object_data.list)
   let current_page = get(a:object_data, 'current_page', 1)
-  let needs_pagination = total_items > max_per_page
+  let needs_pagination = max_per_page > 0 && total_items > max_per_page
 
   if needs_pagination
     " Calculate pagination info
@@ -586,11 +592,16 @@ endfunction
 function! s:drawer.render_object_items(server, database, object_item, object_type, level) abort
   let object_name = a:object_item.full_name
   " Parse schema and name from object_name (format: [schema].[name])
-  let parts = split(object_name, '\.')
-  let schema = len(parts) > 1 ? substitute(parts[0], '^\[', '', '') : 'dbo'
-  let schema = substitute(schema, '\]$', '', '')
-  let name = len(parts) > 1 ? substitute(parts[1], '^\[', '', '') : object_name
-  let name = substitute(name, '\]$', '', '')
+  " Use pattern matching to handle brackets correctly
+  let match_result = matchlist(object_name, '^\[\?\([^\]]*\)\]\?\.\[\?\(.*\)\]\?$')
+  if !empty(match_result) && len(match_result) >= 3
+    let schema = match_result[1]
+    let name = match_result[2]
+  else
+    " Fallback: no schema prefix or malformed name
+    let schema = 'dbo'
+    let name = substitute(substitute(object_name, '^\[', '', ''), '\]$', '', '')
+  endif
 
   " Get action helpers for this object type
   let helpers = db_ui#object_helpers#get(a:database.scheme, a:object_type)
