@@ -250,7 +250,7 @@ function! s:drawer.rename_line() abort
     return self.rename_buffer(item.file_path, item.dbui_db_key_name, get(item, 'saved', 0))
   endif
 
-  if item.type ==? 'db'
+  if item.type ==? 'db' || item.type ==? 'server'
     return self.get_connections().rename(self.dbui.dbs[item.dbui_db_key_name])
   endif
 
@@ -437,7 +437,7 @@ function! s:drawer.add_db(db) abort
       call self._render_buffers_section(a:db)
     elseif section ==# 'saved_queries'
       call self._render_saved_queries_section(a:db)
-    elseif section ==# 'schemas'
+    elseif section ==# 'schemas' || section ==# 'database_objects'
       call self._render_schemas_section(a:db)
     endif
   endfor
@@ -471,7 +471,7 @@ function! s:drawer.add_server(server) abort
       call self._render_buffers_section(a:server)
     elseif section ==# 'saved_queries'
       call self._render_saved_queries_section(a:server)
-    elseif section ==# 'schemas'
+    elseif section ==# 'schemas' || section ==# 'database_objects'
       " For SSMS-style, render databases instead of schemas
       call self.render_databases(a:server)
     endif
