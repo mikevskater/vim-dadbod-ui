@@ -1525,8 +1525,9 @@ function! s:drawer.populate_tables(db) abort
             " Server-level mode: filter by TABLE_CATALOG (database name)
             let query = query . ' WHERE TABLE_CATALOG = ''' . a:db.name . ''' AND TABLE_TYPE = ''BASE TABLE'''
           else
-            " Database-specific mode: filter out system tables
-            let query = query . ' WHERE TABLE_TYPE = ''BASE TABLE'' AND TABLE_SCHEMA NOT IN (''sys'', ''INFORMATION_SCHEMA'')'
+            " Database-specific mode: INFORMATION_SCHEMA is already scoped to current database
+            " Just filter by table type to exclude views
+            let query = query . ' WHERE TABLE_TYPE = ''BASE TABLE'''
           endif
         endif
 
