@@ -688,6 +688,11 @@ function! s:dbui.populate_object_type(database, object_type, scheme_info) abort
       if type(row) ==? type([]) && len(row) >= 2
         let schema_name = trim(row[0])
         let object_name = trim(row[1])
+
+        " Skip header rows (column names)
+        if schema_name =~? '^\(TABLE_SCHEMA\|table_schema\|schema_name\|routine_schema\)$'
+          continue
+        endif
       else
         let schema_name = a:database.default_scheme
         let object_name = trim(row)

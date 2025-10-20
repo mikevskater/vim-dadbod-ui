@@ -637,6 +637,13 @@ function! db_ui#schemas#query_views(db, scheme) abort
   if empty(query)
     return []
   endif
+
+  " Filter by database for MySQL/MariaDB in SSMS-style mode
+  if g:db_ui_use_ssms_style && (a:db.scheme =~? '^mysql' || a:db.scheme =~? '^mariadb') && has_key(a:db, 'name')
+    " Exclude system schemas and filter by current database
+    let query = query . ' WHERE table_schema = ''' . a:db.name . ''' AND table_schema NOT IN (''information_schema'', ''mysql'', ''performance_schema'', ''sys'')'
+  endif
+
   return db_ui#schemas#query(a:db, a:scheme, query)
 endfunction
 
@@ -645,6 +652,17 @@ function! db_ui#schemas#query_procedures(db, scheme) abort
   if empty(query)
     return []
   endif
+
+  " Filter by database for MySQL/MariaDB in SSMS-style mode
+  if g:db_ui_use_ssms_style && (a:db.scheme =~? '^mysql' || a:db.scheme =~? '^mariadb') && has_key(a:db, 'name')
+    " Add WHERE clause or extend existing one to filter by database and exclude system schemas
+    if query =~? 'WHERE'
+      let query = query . ' AND routine_schema = ''' . a:db.name . ''' AND routine_schema NOT IN (''information_schema'', ''mysql'', ''performance_schema'', ''sys'')'
+    else
+      let query = query . ' WHERE routine_schema = ''' . a:db.name . ''' AND routine_schema NOT IN (''information_schema'', ''mysql'', ''performance_schema'', ''sys'')'
+    endif
+  endif
+
   return db_ui#schemas#query(a:db, a:scheme, query)
 endfunction
 
@@ -653,6 +671,17 @@ function! db_ui#schemas#query_functions(db, scheme) abort
   if empty(query)
     return []
   endif
+
+  " Filter by database for MySQL/MariaDB in SSMS-style mode
+  if g:db_ui_use_ssms_style && (a:db.scheme =~? '^mysql' || a:db.scheme =~? '^mariadb') && has_key(a:db, 'name')
+    " Add WHERE clause or extend existing one to filter by database and exclude system schemas
+    if query =~? 'WHERE'
+      let query = query . ' AND routine_schema = ''' . a:db.name . ''' AND routine_schema NOT IN (''information_schema'', ''mysql'', ''performance_schema'', ''sys'')'
+    else
+      let query = query . ' WHERE routine_schema = ''' . a:db.name . ''' AND routine_schema NOT IN (''information_schema'', ''mysql'', ''performance_schema'', ''sys'')'
+    endif
+  endif
+
   return db_ui#schemas#query(a:db, a:scheme, query)
 endfunction
 

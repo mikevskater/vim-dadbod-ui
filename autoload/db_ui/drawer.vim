@@ -1398,8 +1398,8 @@ function! s:drawer.populate_tables(db) abort
         " Build query with database filter for MySQL/MariaDB and SQL Server
         let query = scheme_info.schemes_tables_query
         if (a:db.scheme =~? '^mysql' || a:db.scheme =~? '^mariadb') && has_key(a:db, 'name')
-          " For MySQL, filter by TABLE_SCHEMA (database name)
-          let query = query . ' WHERE table_schema = ''' . a:db.name . ''''
+          " For MySQL, filter by TABLE_SCHEMA (database name) and exclude system schemas
+          let query = query . ' WHERE table_schema = ''' . a:db.name . ''' AND table_schema NOT IN (''information_schema'', ''mysql'', ''performance_schema'', ''sys'')'
         elseif (a:db.scheme =~? '^sqlserver' || a:db.scheme =~? '^mssql') && has_key(a:db, 'name')
           " For SQL Server, filter by TABLE_CATALOG (database name)
           let query = query . ' WHERE TABLE_CATALOG = ''' . a:db.name . ''''
@@ -1412,6 +1412,17 @@ function! s:drawer.populate_tables(db) abort
           if type(row) ==? type([]) && len(row) >= 2
             let schema_name = trim(row[0])
             let table_name = trim(row[1])
+
+            " Skip header row (column names like TABLE_SCHEMA, TABLE_NAME)
+            if schema_name =~? '^TABLE_SCHEMA$' || schema_name =~? '^table_schema$'
+              continue
+            endif
+
+            " Skip empty rows
+            if empty(schema_name) || empty(table_name)
+              continue
+            endif
+
             let full_name = '['.schema_name.'].['.table_name.']'
             call add(a:db.tables.list, full_name)
           endif
