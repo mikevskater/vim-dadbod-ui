@@ -577,6 +577,26 @@ function! s:drawer.toggle_line(edit_action) abort
 
   let db = self.dbui.dbs[item.dbui_db_key_name]
 
+  " Handle SSMS-style server/database/object type navigation
+  if item.type ==? 'server'
+    let db.expanded = !db.expanded
+    call self.toggle_db(db)
+    return self.render()
+  endif
+
+  if item.type ==? 'server->databases'
+    let db.databases.expanded = !db.databases.expanded
+    if db.databases.expanded && empty(db.databases.list)
+      call self.dbui.populate_databases(db)
+    endif
+    return self.render()
+  endif
+
+  if stridx(item.type, 'server->database->') == 0
+    return self.toggle_ssms_item(db, item, a:edit_action)
+  endif
+
+  " Legacy database-level navigation
   let tree = db
   if item.type !=? 'db'
     let tree = self.get_nested(db, item.type)
@@ -586,6 +606,62 @@ function! s:drawer.toggle_line(edit_action) abort
 
   if item.type ==? 'db'
     call self.toggle_db(db)
+  endif
+
+  return self.render()
+endfunction
+
+function! s:drawer.toggle_ssms_item(server, item, edit_action) abort
+  let parts = split(a:item.type, '->')
+
+  " server->database->DatabaseName
+  if len(parts) == 3
+    let db_name = a:item.database_name
+    let database = a:server.databases.items[db_name]
+    let database.expanded = !database.expanded
+
+    if database.expanded
+      call self.dbui.connect_to_database(a:server, db_name)
+    endif
+
+    return self.render()
+  endif
+
+  " server->database->DatabaseName->tables/views/procedures/functions
+  if len(parts) == 4
+    let db_name = a:item.database_name
+    let database = a:server.databases.items[db_name]
+    let object_type = a:item.object_type
+
+    if object_type ==# 'tables'
+      let database.tables.expanded = !database.tables.expanded
+      if database.tables.expanded
+        call self.populate_tables(database)
+      endif
+    else
+      let database.object_types[object_type].expanded = !database.object_types[object_type].expanded
+      if database.object_types[object_type].expanded
+        call self.dbui.populate_object_type(database, object_type, db_ui#schemas#get(database.scheme))
+      endif
+    endif
+
+    return self.render()
+  endif
+
+  " server->database->DatabaseName->object_type->ObjectName (individual object)
+  if len(parts) == 5
+    let db_name = a:item.database_name
+    let database = a:server.databases.items[db_name]
+    let object_type = a:item.object_type
+    let object_name = a:item.object_name
+
+    if object_type ==# 'tables'
+      let database.tables.items[object_name].expanded = !database.tables.items[object_name].expanded
+    else
+      let database.object_types[object_type].items[object_name].expanded = !database.object_types[object_type].items[object_name].expanded
+    endif
+
+    return self.render()
   endif
 
   return self.render()
