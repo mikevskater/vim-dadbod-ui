@@ -1014,6 +1014,14 @@ function! s:drawer.execute_object_action(item, edit_action) abort
     return db_ui#notifications#error('No action template found for '.a:item.action_type.' on '.a:item.object_type)
   endif
 
+  " For server-level connections, prepend database context switch
+  if has_key(a:item, 'database_name') && has_key(db, 'databases')
+    let context_switch = self.get_database_context_switch(db.scheme, a:item.database_name)
+    if !empty(context_switch)
+      let sql = context_switch . "\n\n" . sql
+    endif
+  endif
+
   " Create a buffer item to open the query
   let buffer_item = {
         \ 'action': 'open',
@@ -1025,6 +1033,26 @@ function! s:drawer.execute_object_action(item, edit_action) abort
 
   " Open the query buffer
   return self.get_query().open(buffer_item, a:edit_action)
+endfunction
+
+function! s:drawer.get_database_context_switch(scheme, database_name) abort
+  " Generate database context switch statement based on database type
+  let scheme = tolower(a:scheme)
+
+  if scheme =~? '^sqlserver' || scheme =~? '^mssql'
+    " SQL Server uses USE [database]; GO
+    return "USE [" . a:database_name . "];\nGO"
+  elseif scheme =~? '^postgres'
+    " PostgreSQL: Connection switching not supported in query buffers
+    " Would need to reconnect with different database
+    return "-- Connected to database: " . a:database_name
+  elseif scheme =~? '^mysql' || scheme =~? '^mariadb'
+    " MySQL/MariaDB uses USE `database`;
+    return "USE `" . a:database_name . "`;"
+  else
+    " Other databases - add a comment
+    return "-- Database: " . a:database_name
+  endif
 endfunction
 
 function! s:drawer.get_query() abort
