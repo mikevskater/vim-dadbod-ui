@@ -737,21 +737,29 @@ function! s:dbui.populate_structural_group(database, schema, object_name, group_
     call db_ui#notifications#info('Fetching '.a:group_type.' for '.a:object_name.'...')
 
     let result = []
+    let min_columns = 1
+
     if a:group_type ==# 'columns'
       let result = db_ui#schemas#query_columns(a:database, scheme_info, a:schema, a:object_name)
+      let min_columns = 5  " column_name, data_type, max_length, nullable, default
     elseif a:group_type ==# 'indexes'
       let result = db_ui#schemas#query_indexes(a:database, scheme_info, a:schema, a:object_name)
+      let min_columns = 2  " index_name, type (and possibly more)
     elseif a:group_type ==# 'primary_keys'
       let result = db_ui#schemas#query_primary_keys(a:database, scheme_info, a:schema, a:object_name)
+      let min_columns = 2
     elseif a:group_type ==# 'foreign_keys'
       let result = db_ui#schemas#query_foreign_keys(a:database, scheme_info, a:schema, a:object_name)
+      let min_columns = 2
     elseif a:group_type ==# 'constraints'
       let result = db_ui#schemas#query_constraints(a:database, scheme_info, a:schema, a:object_name)
+      let min_columns = 2  " constraint_name, type
     elseif a:group_type ==# 'parameters'
       let result = db_ui#schemas#query_parameters(a:database, scheme_info, a:schema, a:object_name)
+      let min_columns = 3  " param_name, data_type, mode
     endif
 
-    let parsed_result = get(scheme_info, 'parse_results', {results, min -> results})(result, 1)
+    let parsed_result = get(scheme_info, 'parse_results', {results, min -> results})(result, min_columns)
     call db_ui#notifications#info('Found '.len(parsed_result).' '.a:group_type.' after '.split(reltimestr(reltime(query_time)))[0].' sec.')
 
     return parsed_result
