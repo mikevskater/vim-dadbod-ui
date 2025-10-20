@@ -1039,23 +1039,11 @@ function! s:drawer.execute_object_action(item, edit_action) abort
       let scheme_info = db_ui#schemas#get(query_connection.scheme)
       let result = db_ui#schemas#query(query_connection, scheme_info, sql)
 
-      " Debug: Log the raw result
-      echom 'ALTER query executed - Total lines: '.len(result)
-      for idx in range(min([len(result), 15]))
-        echom 'Result line '.idx.': ['.result[idx].']'
-      endfor
-
       " Parse the result to extract the definition
       let definition = self.parse_alter_result(result, database.scheme)
 
       if empty(definition)
-        " Debug: show raw result
-        echom 'ALTER result debug - Total lines: '.len(result)
-        for idx in range(len(result))
-          echom 'Line '.idx.': ['.result[idx].']'
-        endfor
-        call db_ui#utils#print_debug({ 'message': 'ALTER result full', 'data': result })
-        return db_ui#notifications#error('Could not retrieve definition for '.a:item.object_name.'. Result lines: '.len(result))
+        return db_ui#notifications#error('Could not retrieve definition for '.a:item.object_name)
       endif
 
       " Create buffer with the object definition
@@ -1106,37 +1094,29 @@ function! s:drawer.parse_alter_result(result, scheme) abort
 
   " For SQL Server, the result format varies by query type
   if scheme =~? '^sqlserver' || scheme =~? '^mssql'
-    " SQL Server sys.sql_modules returns definition in a single-column result
+    " SQL Server sys.sql_modules returns definition directly without header/separator
     " Format:
-    " - header line (column name: "definition")
-    " - separator line (-----)
+    " - empty line
     " - data rows (the actual definition, may span multiple lines)
     " - empty lines
     " - metadata line "(N rows affected)"
     let definition_lines = []
-    let found_separator = 0
 
     for line in a:result
-      " Skip separator lines (-----)
-      if line =~? '^-\+$' || line =~? '^-\+\s*$'
-        let found_separator = 1
-        continue
-      endif
-
-      " Skip header line (before separator)
-      if !found_separator
-        continue
-      endif
-
       " Stop at metadata lines like "(1 rows affected)"
       if line =~? '^(\d\+ rows\? affected)'
         break
       endif
 
-      " Collect all lines after separator (including empty lines for formatting)
+      " Collect all lines (including empty lines for formatting)
       " The definition includes the full CREATE statement
       call add(definition_lines, line)
     endfor
+
+    " Remove leading empty lines
+    while !empty(definition_lines) && empty(trim(definition_lines[0]))
+      call remove(definition_lines, 0)
+    endwhile
 
     " Remove trailing empty lines
     while !empty(definition_lines) && empty(trim(definition_lines[-1]))
