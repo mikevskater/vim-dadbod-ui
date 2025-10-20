@@ -711,7 +711,7 @@ function! s:drawer.render_structural_group_items(data, group_type, db_key_name, 
 
       " Calculate widths for this row
       for idx in range(len(row))
-        let val = string(row[idx])
+        let val = row[idx]
         if len(val) > max_widths[idx]
           let max_widths[idx] = len(val)
         endif
@@ -724,8 +724,8 @@ function! s:drawer.render_structural_group_items(data, group_type, db_key_name, 
       if len(max_widths) < 1
         call add(max_widths, 0)
       endif
-      if len(string(row)) > max_widths[0]
-        let max_widths[0] = len(string(row))
+      if len(row) > max_widths[0]
+        let max_widths[0] = len(row)
       endif
     endif
   endfor
@@ -735,7 +735,7 @@ function! s:drawer.render_structural_group_items(data, group_type, db_key_name, 
     let parts = []
 
     for idx in range(len(row))
-      let val = string(row[idx])
+      let val = row[idx]
       let width = idx < len(max_widths) ? max_widths[idx] : len(val)
       " Pad with spaces to align
       let padded = val . repeat(' ', width - len(val))
