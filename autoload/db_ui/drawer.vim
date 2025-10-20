@@ -1816,19 +1816,27 @@ function! s:drawer.apply_filter() abort
   let item = self.get_current_item()
 
   " Determine what type of item we're filtering
-  if item.type ==? 'toggle' && has_key(item, 'object_type') && !has_key(item, 'object_name')
-    " Object type group (TABLES, VIEWS, PROCEDURES, FUNCTIONS)
-    let scope = db_ui#filter#build_scope(item.dbui_db_key_name, item.database_name, item.object_type)
-    call s:prompt_object_type_filter(scope, item.object_type)
-    return self.render()
-
-  elseif item.type ==? 'structural_group'
+  " Check for structural group first (Columns, Indexes, etc.)
+  if item.type ==? 'structural_group'
     " Structural group (Columns, Indexes, Keys, etc.)
     let scope = db_ui#filter#build_structural_scope(item.dbui_db_key_name, item.database_name, item.object_type, item.object_name, item.group_type)
     call s:prompt_structural_filter(scope, item.group_type)
     return self.render()
+
+  " Check for object type group (TABLES, VIEWS, PROCEDURES, FUNCTIONS)
+  " These items have object_type but NOT object_name (or object_name is not set)
+  elseif item.type ==? 'toggle' && has_key(item, 'object_type') && has_key(item, 'database_name')
+    " Verify this is not an individual object (which would have object_name set)
+    if !has_key(item, 'object_name') || empty(get(item, 'object_name', ''))
+      " Object type group (TABLES, VIEWS, PROCEDURES, FUNCTIONS)
+      let scope = db_ui#filter#build_scope(item.dbui_db_key_name, item.database_name, item.object_type)
+      call s:prompt_object_type_filter(scope, item.object_type)
+      return self.render()
+    else
+      call db_ui#notifications#info('Press f on the ' . toupper(item.object_type) . ' header to filter, not on individual objects')
+    endif
   else
-    call db_ui#notifications#info('Filtering is only available for object type groups and structural groups')
+    call db_ui#notifications#info('Filtering is only available for object type groups (TABLES, VIEWS, etc.) and structural groups (Columns, Indexes, etc.)')
   endif
 endfunction
 
@@ -1836,18 +1844,8 @@ endfunction
 function! s:drawer.clear_filter() abort
   let item = self.get_current_item()
 
-  if item.type ==? 'toggle' && has_key(item, 'object_type') && !has_key(item, 'object_name')
-    " Object type group
-    let scope = db_ui#filter#build_scope(item.dbui_db_key_name, item.database_name, item.object_type)
-    if db_ui#filter#has_filter(scope)
-      call db_ui#filter#clear(scope)
-      call db_ui#notifications#info('Filter cleared for ' . item.object_type)
-      return self.render()
-    else
-      call db_ui#notifications#info('No filter active for ' . item.object_type)
-    endif
-
-  elseif item.type ==? 'structural_group'
+  " Check for structural group first
+  if item.type ==? 'structural_group'
     " Structural group
     let scope = db_ui#filter#build_structural_scope(item.dbui_db_key_name, item.database_name, item.object_type, item.object_name, item.group_type)
     if db_ui#filter#has_filter(scope)
@@ -1856,6 +1854,23 @@ function! s:drawer.clear_filter() abort
       return self.render()
     else
       call db_ui#notifications#info('No filter active for ' . item.group_type)
+    endif
+
+  " Check for object type group
+  elseif item.type ==? 'toggle' && has_key(item, 'object_type') && has_key(item, 'database_name')
+    " Verify this is not an individual object
+    if !has_key(item, 'object_name') || empty(get(item, 'object_name', ''))
+      " Object type group
+      let scope = db_ui#filter#build_scope(item.dbui_db_key_name, item.database_name, item.object_type)
+      if db_ui#filter#has_filter(scope)
+        call db_ui#filter#clear(scope)
+        call db_ui#notifications#info('Filter cleared for ' . item.object_type)
+        return self.render()
+      else
+        call db_ui#notifications#info('No filter active for ' . item.object_type)
+      endif
+    else
+      call db_ui#notifications#info('Press F on the ' . toupper(item.object_type) . ' header to clear filter')
     endif
   else
     call db_ui#notifications#info('No filter to clear')
