@@ -1040,14 +1040,21 @@ function! s:drawer.execute_object_action(item, edit_action) abort
       let result = db_ui#schemas#query(query_connection, scheme_info, sql)
 
       " Debug: Log the raw result
-      call db_ui#utils#print_debug({ 'message': 'ALTER query result', 'lines': len(result), 'first_10': result[0:min([9, len(result)-1])] })
+      echom 'ALTER query executed - Total lines: '.len(result)
+      for idx in range(min([len(result), 15]))
+        echom 'Result line '.idx.': ['.result[idx].']'
+      endfor
 
       " Parse the result to extract the definition
       let definition = self.parse_alter_result(result, database.scheme)
 
       if empty(definition)
         " Debug: show raw result
-        call db_ui#utils#print_debug({ 'message': 'ALTER result', 'data': result })
+        echom 'ALTER result debug - Total lines: '.len(result)
+        for idx in range(len(result))
+          echom 'Line '.idx.': ['.result[idx].']'
+        endfor
+        call db_ui#utils#print_debug({ 'message': 'ALTER result full', 'data': result })
         return db_ui#notifications#error('Could not retrieve definition for '.a:item.object_name.'. Result lines: '.len(result))
       endif
 
