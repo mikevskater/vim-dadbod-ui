@@ -118,6 +118,13 @@ function s:query.open_buffer(db, buffer_name, edit_action, ...)
   silent! exe a:edit_action.' '.a:buffer_name
   call self.setup_buffer(a:db, opts, a:buffer_name, was_single_win)
 
+  " If there's custom content (e.g., from SSMS-style actions), insert it directly
+  if !empty(default_content) && default_content !=# g:db_ui_default_query
+    silent 1,$delete _
+    call setline(1, split(default_content, "\n"))
+    return
+  endif
+
   if empty(table)
     return
   endif
