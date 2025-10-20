@@ -1260,7 +1260,11 @@ function! s:drawer.execute_object_action(item, edit_action) abort
 
   " For other actions (SELECT, EXEC, DROP, DEPENDENCIES), use the query as-is
   " For server-level connections, prepend database context switch
-  if has_key(a:item, 'database_name') && has_key(db, 'databases')
+  " Only add USE statement if:
+  " 1. Item has database_name (from server-level navigation)
+  " 2. Connection has databases key (is server-level)
+  " 3. The database_name is actually a database in the databases list (not connection name)
+  if has_key(a:item, 'database_name') && has_key(db, 'databases') && has_key(db.databases.items, a:item.database_name)
     let context_switch = self.get_database_context_switch(db.scheme, a:item.database_name)
     if !empty(context_switch)
       let sql = context_switch . "\n\n" . sql
