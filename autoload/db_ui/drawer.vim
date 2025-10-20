@@ -1519,11 +1519,15 @@ function! s:drawer.populate_tables(db) abort
           " For MySQL, filter by TABLE_SCHEMA (database name) and exclude system schemas
           let query = query . ' WHERE table_schema = ''' . a:db.name . ''' AND table_schema NOT IN (''information_schema'', ''mysql'', ''performance_schema'', ''sys'')'
 
-        " For SQL Server: Only filter when we're in server-level mode (has databases key)
-        " Database-specific connections are already scoped to the database
-        elseif (a:db.scheme =~? '^sqlserver' || a:db.scheme =~? '^mssql') && has_key(a:db, 'name') && has_key(a:db, 'databases')
-          " For SQL Server in server-level mode, filter by TABLE_CATALOG (database name)
-          let query = query . ' WHERE TABLE_CATALOG = ''' . a:db.name . ''''
+        " For SQL Server: Filter by database name and exclude system objects
+        elseif (a:db.scheme =~? '^sqlserver' || a:db.scheme =~? '^mssql')
+          if has_key(a:db, 'databases')
+            " Server-level mode: filter by TABLE_CATALOG (database name)
+            let query = query . ' WHERE TABLE_CATALOG = ''' . a:db.name . ''' AND TABLE_TYPE = ''BASE TABLE'''
+          else
+            " Database-specific mode: filter out system tables
+            let query = query . ' WHERE TABLE_TYPE = ''BASE TABLE'' AND TABLE_SCHEMA NOT IN (''sys'', ''INFORMATION_SCHEMA'')'
+          endif
         endif
 
         let result = db_ui#schemas#query(a:db, scheme_info, query)
