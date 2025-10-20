@@ -543,8 +543,122 @@ function! s:drawer.render_object_type_group(server, database, label, object_type
     let object_item = a:object_data.items[object_name]
     call self.add(object_name, 'toggle', type_path.'->'.object_name, self.get_toggle_icon('table', object_item), a:server.key_name, a:level + 1, { 'expanded': object_item.expanded, 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name })
 
-    " TODO: Render object actions and structural info in Phase 6
+    " Render object actions and structural info when expanded
+    if object_item.expanded
+      call self.render_object_items(a:server, a:database, object_name, a:object_type, a:level + 2)
+    endif
   endfor
+endfunction
+
+function! s:drawer.render_object_items(server, database, object_name, object_type, level) abort
+  " Parse schema and name from object_name (format: [schema].[name])
+  let parts = split(a:object_name, '\.')
+  let schema = len(parts) > 1 ? substitute(parts[0], '^\[', '', '') : 'dbo'
+  let schema = substitute(schema, '\]$', '', '')
+  let name = len(parts) > 1 ? substitute(parts[1], '^\[', '', '') : a:object_name
+  let name = substitute(name, '\]$', '', '')
+
+  " Get action helpers for this object type
+  let helpers = db_ui#object_helpers#get(a:database.scheme, a:object_type)
+
+  " Render actions based on object type
+  if a:object_type ==# 'tables'
+    " Render table actions and structural groups
+    if has_key(helpers, 'SELECT')
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+    endif
+
+    " Structural groups for tables
+    if g:db_ui_ssms_show_columns
+      call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': 0 })
+    endif
+
+    if g:db_ui_ssms_show_indexes
+      call self.add('Indexes', 'toggle', 'structural_group', g:db_ui_icons.indexes, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'indexes', 'expanded': 0 })
+    endif
+
+    if g:db_ui_ssms_show_keys
+      call self.add('Keys', 'toggle', 'structural_group', g:db_ui_icons.keys, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'keys', 'expanded': 0 })
+    endif
+
+    if g:db_ui_ssms_show_constraints
+      call self.add('Constraints', 'toggle', 'structural_group', g:db_ui_icons.constraints, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'constraints', 'expanded': 0 })
+    endif
+
+    if has_key(helpers, 'ALTER')
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+    endif
+
+    if has_key(helpers, 'DROP')
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+    endif
+
+    if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+    endif
+
+  elseif a:object_type ==# 'views'
+    " Render view actions
+    if has_key(helpers, 'SELECT')
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+    endif
+
+    if g:db_ui_ssms_show_columns
+      call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': 0 })
+    endif
+
+    if has_key(helpers, 'ALTER')
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+    endif
+
+    if has_key(helpers, 'DROP')
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+    endif
+
+    if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+    endif
+
+  elseif a:object_type ==# 'procedures'
+    " Render procedure actions
+    if has_key(helpers, 'EXEC')
+      call self.add('EXEC', 'action', 'action', g:db_ui_icons.action_exec, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'EXEC' })
+    endif
+
+    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': 0 })
+
+    if has_key(helpers, 'ALTER')
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+    endif
+
+    if has_key(helpers, 'DROP')
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+    endif
+
+    if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+    endif
+
+  elseif a:object_type ==# 'functions'
+    " Render function actions
+    if has_key(helpers, 'SELECT')
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+    endif
+
+    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': 0 })
+
+    if has_key(helpers, 'ALTER')
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+    endif
+
+    if has_key(helpers, 'DROP')
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+    endif
+
+    if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+    endif
+  endif
 endfunction
 
 function! s:drawer.render_tables(tables, db, path, level, schema) abort
@@ -584,6 +698,11 @@ function! s:drawer.toggle_line(edit_action) abort
 
   if item.action ==? 'open'
     return self.get_query().open(item, a:edit_action)
+  endif
+
+  " Handle SSMS-style object actions (SELECT, EXEC, ALTER, DROP, DEPENDENCIES)
+  if item.action ==? 'action'
+    return self.execute_object_action(item, a:edit_action)
   endif
 
   let db = self.dbui.dbs[item.dbui_db_key_name]
@@ -719,6 +838,45 @@ function! s:drawer.toggle_db_level_ssms_item(db, item, edit_action) abort
   endif
 
   return self.render()
+endfunction
+
+function! s:drawer.execute_object_action(item, edit_action) abort
+  " Execute SSMS-style object actions (SELECT, EXEC, ALTER, DROP, DEPENDENCIES)
+  let db = self.dbui.dbs[a:item.dbui_db_key_name]
+
+  " Get the database for server-level connections
+  let database = db
+  if has_key(a:item, 'database_name') && has_key(db, 'databases') && has_key(db.databases.items, a:item.database_name)
+    let database = db.databases.items[a:item.database_name]
+  endif
+
+  " Build variable substitution dict
+  let vars = {
+        \ 'schema': get(a:item, 'schema', 'dbo'),
+        \ 'table': get(a:item, 'name', ''),
+        \ 'view': get(a:item, 'name', ''),
+        \ 'procedure': get(a:item, 'name', ''),
+        \ 'function': get(a:item, 'name', ''),
+        \ }
+
+  " Get the SQL template for this action
+  let sql = db_ui#object_helpers#get_action(database.scheme, a:item.object_type, a:item.action, vars)
+
+  if empty(sql)
+    return db_ui#notifications#error('No action template found for '.a:item.action.' on '.a:item.object_type)
+  endif
+
+  " Create a buffer item to open the query
+  let buffer_item = {
+        \ 'action': 'open',
+        \ 'type': 'query',
+        \ 'label': a:item.action.' - '.a:item.object_name,
+        \ 'dbui_db_key_name': database.key_name,
+        \ 'content': sql,
+        \ }
+
+  " Open the query buffer
+  return self.get_query().open(buffer_item, a:edit_action)
 endfunction
 
 function! s:drawer.get_query() abort
@@ -988,6 +1146,9 @@ function! s:drawer._render_schemas_section(db) abort
       for view_name in a:db.object_types.views.list
         let view_item = a:db.object_types.views.items[view_name]
         call self.add(view_name, 'toggle', 'db->views->'.view_name, self.get_toggle_icon('table', view_item), a:db.key_name, 2, { 'expanded': view_item.expanded })
+        if view_item.expanded
+          call self.render_db_level_object_items(a:db, view_name, 'views', 3)
+        endif
       endfor
     endif
 
@@ -998,6 +1159,9 @@ function! s:drawer._render_schemas_section(db) abort
       for proc_name in a:db.object_types.procedures.list
         let proc_item = a:db.object_types.procedures.items[proc_name]
         call self.add(proc_name, 'toggle', 'db->procedures->'.proc_name, self.get_toggle_icon('table', proc_item), a:db.key_name, 2, { 'expanded': proc_item.expanded })
+        if proc_item.expanded
+          call self.render_db_level_object_items(a:db, proc_name, 'procedures', 3)
+        endif
       endfor
     endif
 
@@ -1008,6 +1172,9 @@ function! s:drawer._render_schemas_section(db) abort
       for func_name in a:db.object_types.functions.list
         let func_item = a:db.object_types.functions.items[func_name]
         call self.add(func_name, 'toggle', 'db->functions->'.func_name, self.get_toggle_icon('table', func_item), a:db.key_name, 2, { 'expanded': func_item.expanded })
+        if func_item.expanded
+          call self.render_db_level_object_items(a:db, func_name, 'functions', 3)
+        endif
       endfor
     endif
   elseif a:db.schema_support
@@ -1027,6 +1194,80 @@ function! s:drawer._render_schemas_section(db) abort
     " Legacy table-only support
     call self.add('Tables ('.len(a:db.tables.items).')', 'toggle', 'tables', self.get_toggle_icon('tables', a:db.tables), a:db.key_name, 1, { 'expanded': a:db.tables.expanded })
     call self.render_tables(a:db.tables, a:db, 'tables->items', 2, '')
+  endif
+endfunction
+
+function! s:drawer.render_db_level_object_items(db, object_name, object_type, level) abort
+  " Render actions and structural groups for database-level SSMS objects
+  " Parse schema and name from object_name (format: [schema].[name])
+  let parts = split(a:object_name, '\.')
+  let schema = len(parts) > 1 ? substitute(parts[0], '^\[', '', '') : 'dbo'
+  let schema = substitute(schema, '\]$', '', '')
+  let name = len(parts) > 1 ? substitute(parts[1], '^\[', '', '') : a:object_name
+  let name = substitute(name, '\]$', '', '')
+
+  " Get action helpers for this object type
+  let helpers = db_ui#object_helpers#get(a:db.scheme, a:object_type)
+
+  " Render actions based on object type (same logic as render_object_items but for db-level)
+  if a:object_type ==# 'views'
+    if has_key(helpers, 'SELECT')
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+    endif
+
+    if g:db_ui_ssms_show_columns
+      call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': 0 })
+    endif
+
+    if has_key(helpers, 'ALTER')
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+    endif
+
+    if has_key(helpers, 'DROP')
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+    endif
+
+    if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+    endif
+
+  elseif a:object_type ==# 'procedures'
+    if has_key(helpers, 'EXEC')
+      call self.add('EXEC', 'action', 'action', g:db_ui_icons.action_exec, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'EXEC' })
+    endif
+
+    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': 0 })
+
+    if has_key(helpers, 'ALTER')
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+    endif
+
+    if has_key(helpers, 'DROP')
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+    endif
+
+    if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+    endif
+
+  elseif a:object_type ==# 'functions'
+    if has_key(helpers, 'SELECT')
+      call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
+    endif
+
+    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': 0 })
+
+    if has_key(helpers, 'ALTER')
+      call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
+    endif
+
+    if has_key(helpers, 'DROP')
+      call self.add('DROP', 'action', 'action', g:db_ui_icons.action_drop, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DROP' })
+    endif
+
+    if g:db_ui_ssms_show_dependencies && has_key(helpers, 'DEPENDENCIES')
+      call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:db.key_name, a:level, { 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
+    endif
   endif
 endfunction
 
