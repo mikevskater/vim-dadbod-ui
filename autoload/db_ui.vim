@@ -271,6 +271,15 @@ function! s:dbui.generate_new_db_entry(db) abort
     let db.is_server = 1
   endif
 
+  " Add SSMS-style object types structure for database-level connections when SSMS mode is enabled
+  if g:db_ui_use_ssms_style && !get(db, 'is_server', 0)
+    let db.object_types = {
+          \ 'views': {'expanded': 0, 'items': {}, 'list': []},
+          \ 'procedures': {'expanded': 0, 'items': {}, 'list': []},
+          \ 'functions': {'expanded': 0, 'items': {}, 'list': []},
+          \ }
+  endif
+
   return db
 endfunction
 

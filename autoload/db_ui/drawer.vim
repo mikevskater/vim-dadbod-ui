@@ -607,6 +607,11 @@ function! s:drawer.toggle_line(edit_action) abort
     return self.toggle_ssms_item(db, item, a:edit_action)
   endif
 
+  " Handle SSMS-style database-level object types (db->tables, db->views, etc.)
+  if stridx(item.type, 'db->') == 0
+    return self.toggle_db_level_ssms_item(db, item, a:edit_action)
+  endif
+
   " Legacy database-level navigation
   let tree = db
   if item.type !=? 'db'
@@ -670,6 +675,44 @@ function! s:drawer.toggle_ssms_item(server, item, edit_action) abort
       let database.tables.items[object_name].expanded = !database.tables.items[object_name].expanded
     else
       let database.object_types[object_type].items[object_name].expanded = !database.object_types[object_type].items[object_name].expanded
+    endif
+
+    return self.render()
+  endif
+
+  return self.render()
+endfunction
+
+function! s:drawer.toggle_db_level_ssms_item(db, item, edit_action) abort
+  let parts = split(a:item.type, '->')
+
+  " db->tables, db->views, db->procedures, db->functions
+  if len(parts) == 2
+    let object_type = parts[1]
+
+    if object_type ==# 'tables'
+      let a:db.tables.expanded = !a:db.tables.expanded
+      if a:db.tables.expanded
+        call self.populate_tables(a:db)
+      endif
+    elseif has_key(a:db.object_types, object_type)
+      let a:db.object_types[object_type].expanded = !a:db.object_types[object_type].expanded
+      if a:db.object_types[object_type].expanded
+        call self.dbui.populate_object_type(a:db, object_type, db_ui#schemas#get(a:db.scheme))
+      endif
+    endif
+
+    return self.render()
+  endif
+
+  " db->views->ViewName, db->procedures->ProcName, db->functions->FuncName
+  if len(parts) == 3
+    let object_type = parts[1]
+    let object_name = parts[2]
+
+    if has_key(a:db.object_types, object_type) && has_key(a:db.object_types[object_type].items, object_name)
+      let object_item = a:db.object_types[object_type].items[object_name]
+      let object_item.expanded = !object_item.expanded
     endif
 
     return self.render()
@@ -929,7 +972,46 @@ function! s:drawer._render_saved_queries_section(db) abort
 endfunction
 
 function! s:drawer._render_schemas_section(db) abort
-  if a:db.schema_support
+  " For SSMS-style mode on database-level connections, render object types
+  if g:db_ui_use_ssms_style && has_key(a:db, 'object_types')
+    " Render TABLES
+    let tables_count = len(a:db.tables.items)
+    call self.add('TABLES ('.tables_count.')', 'toggle', 'db->tables', self.get_toggle_icon('tables', a:db.tables), a:db.key_name, 1, { 'expanded': a:db.tables.expanded })
+    if a:db.tables.expanded
+      call self.render_tables(a:db.tables, a:db, 'tables->items', 2, '')
+    endif
+
+    " Render VIEWS
+    let views_count = len(a:db.object_types.views.items)
+    call self.add('VIEWS ('.views_count.')', 'toggle', 'db->views', self.get_toggle_icon('tables', a:db.object_types.views), a:db.key_name, 1, { 'expanded': a:db.object_types.views.expanded })
+    if a:db.object_types.views.expanded
+      for view_name in a:db.object_types.views.list
+        let view_item = a:db.object_types.views.items[view_name]
+        call self.add(view_name, 'toggle', 'db->views->'.view_name, self.get_toggle_icon('table', view_item), a:db.key_name, 2, { 'expanded': view_item.expanded })
+      endfor
+    endif
+
+    " Render PROCEDURES
+    let procs_count = len(a:db.object_types.procedures.items)
+    call self.add('PROCEDURES ('.procs_count.')', 'toggle', 'db->procedures', self.get_toggle_icon('tables', a:db.object_types.procedures), a:db.key_name, 1, { 'expanded': a:db.object_types.procedures.expanded })
+    if a:db.object_types.procedures.expanded
+      for proc_name in a:db.object_types.procedures.list
+        let proc_item = a:db.object_types.procedures.items[proc_name]
+        call self.add(proc_name, 'toggle', 'db->procedures->'.proc_name, self.get_toggle_icon('table', proc_item), a:db.key_name, 2, { 'expanded': proc_item.expanded })
+      endfor
+    endif
+
+    " Render FUNCTIONS
+    let funcs_count = len(a:db.object_types.functions.items)
+    call self.add('FUNCTIONS ('.funcs_count.')', 'toggle', 'db->functions', self.get_toggle_icon('tables', a:db.object_types.functions), a:db.key_name, 1, { 'expanded': a:db.object_types.functions.expanded })
+    if a:db.object_types.functions.expanded
+      for func_name in a:db.object_types.functions.list
+        let func_item = a:db.object_types.functions.items[func_name]
+        call self.add(func_name, 'toggle', 'db->functions->'.func_name, self.get_toggle_icon('table', func_item), a:db.key_name, 2, { 'expanded': func_item.expanded })
+      endfor
+    endif
+  elseif a:db.schema_support
+    " Legacy schema support
     call self.add('Schemas ('.len(a:db.schemas.items).')', 'toggle', 'schemas', self.get_toggle_icon('schemas', a:db.schemas), a:db.key_name, 1, { 'expanded': a:db.schemas.expanded })
     if a:db.schemas.expanded
       for schema in a:db.schemas.list
@@ -942,6 +1024,7 @@ function! s:drawer._render_schemas_section(db) abort
       endfor
     endif
   else
+    " Legacy table-only support
     call self.add('Tables ('.len(a:db.tables.items).')', 'toggle', 'tables', self.get_toggle_icon('tables', a:db.tables), a:db.key_name, 1, { 'expanded': a:db.tables.expanded })
     call self.render_tables(a:db.tables, a:db, 'tables->items', 2, '')
   endif
