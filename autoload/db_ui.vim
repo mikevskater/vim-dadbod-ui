@@ -707,12 +707,54 @@ function! s:dbui.populate_object_type(database, object_type, scheme_info) abort
             \ 'name': object_name,
             \ 'full_name': full_name,
             \ 'expanded': 0,
+            \ 'structural_groups': {
+            \   'columns': {'expanded': 0, 'data': []},
+            \   'indexes': {'expanded': 0, 'data': []},
+            \   'keys': {'expanded': 0, 'data': []},
+            \   'primary_keys': {'expanded': 0, 'data': []},
+            \   'foreign_keys': {'expanded': 0, 'data': []},
+            \   'constraints': {'expanded': 0, 'data': []},
+            \   'parameters': {'expanded': 0, 'data': []},
+            \ },
             \ }
     endfor
 
     call db_ui#notifications#info('Found '.len(a:database.object_types[a:object_type].list).' '.a:object_type.' after '.split(reltimestr(reltime(query_time)))[0].' sec.')
   catch /.*/
     call db_ui#notifications#error('Error fetching '.a:object_type.': '.v:exception)
+  endtry
+endfunction
+
+" Populate structural information for objects (columns, indexes, keys, constraints, parameters)
+function! s:dbui.populate_structural_group(database, schema, object_name, group_type) abort
+  let scheme_info = db_ui#schemas#get(a:database.scheme)
+
+  try
+    let query_time = reltime()
+    call db_ui#notifications#info('Fetching '.a:group_type.' for '.a:object_name.'...')
+
+    let result = []
+    if a:group_type ==# 'columns'
+      let result = db_ui#schemas#query_columns(a:database, scheme_info, a:schema, a:object_name)
+    elseif a:group_type ==# 'indexes'
+      let result = db_ui#schemas#query_indexes(a:database, scheme_info, a:schema, a:object_name)
+    elseif a:group_type ==# 'primary_keys'
+      let result = db_ui#schemas#query_primary_keys(a:database, scheme_info, a:schema, a:object_name)
+    elseif a:group_type ==# 'foreign_keys'
+      let result = db_ui#schemas#query_foreign_keys(a:database, scheme_info, a:schema, a:object_name)
+    elseif a:group_type ==# 'constraints'
+      let result = db_ui#schemas#query_constraints(a:database, scheme_info, a:schema, a:object_name)
+    elseif a:group_type ==# 'parameters'
+      let result = db_ui#schemas#query_parameters(a:database, scheme_info, a:schema, a:object_name)
+    endif
+
+    let parsed_result = get(scheme_info, 'parse_results', {results, min -> results})(result, 1)
+    call db_ui#notifications#info('Found '.len(parsed_result).' '.a:group_type.' after '.split(reltimestr(reltime(query_time)))[0].' sec.')
+
+    return parsed_result
+  catch /.*/
+    call db_ui#notifications#error('Error fetching '.a:group_type.': '.v:exception)
+    return []
   endtry
 endfunction
 

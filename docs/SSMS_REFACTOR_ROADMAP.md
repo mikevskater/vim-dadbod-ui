@@ -557,7 +557,7 @@ endfunction
 
 ---
 
-## Phase 6: Actions & Query Execution (Estimated: 3-4 days) ❌
+## Phase 6: Actions & Query Execution (Estimated: 3-4 days) ✅
 
 ### 6.1 Object Type Helpers
 **File**: `autoload/db_ui/object_helpers.vim` (NEW)
@@ -592,19 +592,18 @@ let s:sqlserver_function_helpers = {
 \ }
 ```
 
-- [ ] Implement helpers for each object type
-- [ ] Support parameter substitution: {schema}, {table}, {view}, {procedure}, {function}
-- [ ] Add helper getter: `db_ui#object_helpers#get(scheme, object_type)`
-- [ ] Maintain backward compatibility with existing table helpers
+- [x] Implement helpers for each object type
+- [x] Support parameter substitution: {schema}, {table}, {view}, {procedure}, {function}
+- [x] Add helper getter: `db_ui#object_helpers#get(scheme, object_type)`
+- [x] Maintain backward compatibility with existing table helpers
 
 ### 6.2 Query Execution Updates
 **File**: `autoload/db_ui/query.vim`
 
-- [ ] Modify `s:query.open()` to handle object actions
-- [ ] Add `s:query.open_object_action()` - Handle views, procedures, functions
-- [ ] Add `s:query.open_table_action()` - Handle table actions
-- [ ] Handle different connection contexts (server vs database)
-- [ ] Ensure proper database context switching for SQL Server (deferred to Phase 7)
+- [x] Modify `s:query.open()` to handle object actions (via execute_object_action)
+- [x] Add `s:drawer.execute_object_action()` - Handle views, procedures, functions, tables
+- [x] Handle different connection contexts (server vs database)
+- [ ] Ensure proper database context switching for SQL Server (deferred to Phase 8)
   ```sql
   USE [DatabaseName];
   GO
@@ -614,11 +613,9 @@ let s:sqlserver_function_helpers = {
 ### 6.3 Buffer Management
 **File**: `autoload/db_ui/query.vim`
 
-- [ ] Update buffer naming to include object type and action
-- [ ] Store additional buffer variables:
-  - `b:dbui_object_type` - 'table', 'view', 'procedure', 'function'
-  - `b:dbui_action_name` - 'SELECT', 'EXEC', 'ALTER', etc.
-- [ ] Update buffer management to handle new metadata
+- [x] Update buffer naming to include object type and action
+- [x] Store metadata in buffer item label field
+- [x] Buffer management handles new action-based queries
 
 ### 6.4 Dependencies Query
 **Files**: `autoload/db_ui/schemas.vim`, `autoload/db_ui/query.vim`
@@ -640,11 +637,20 @@ WHERE sed.referencing_id = OBJECT_ID('[{schema}].[{object}]')
 ORDER BY ReferencingSchema, ReferencingObject
 ```
 
-- [ ] Add dependency query to schemas (included in object_helpers.vim templates)
-- [ ] DEPENDENCIES action opens query buffer with dependency SQL
-- [ ] Add interactive navigation for dependencies (jump to related objects) - deferred to Phase 7
+- [x] Add dependency query to schemas (included in object_helpers.vim templates)
+- [x] DEPENDENCIES action opens query buffer with dependency SQL
+- [ ] Add interactive navigation for dependencies (jump to related objects) - deferred to Phase 8
 
-**Status**: ❌ Phase 6 Not Complete
+### 6.5 Structural Groups
+**File**: `autoload/db_ui/drawer.vim`
+
+- [x] Implement structural group rendering (Columns, Indexes, Keys, Constraints, Parameters)
+- [x] Add toggle logic for structural groups
+- [x] Lazy-load structural group data on first expansion
+- [x] Format structural group items with details (data types, nullable, unique, etc.)
+- [x] Support for all object types (tables, views, procedures, functions)
+
+**Status**: ✅ Phase 6 Complete
 
 ---
 

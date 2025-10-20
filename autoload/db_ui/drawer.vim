@@ -545,12 +545,13 @@ function! s:drawer.render_object_type_group(server, database, label, object_type
 
     " Render object actions and structural info when expanded
     if object_item.expanded
-      call self.render_object_items(a:server, a:database, object_name, a:object_type, a:level + 2)
+      call self.render_object_items(a:server, a:database, object_item, a:object_type, a:level + 2)
     endif
   endfor
 endfunction
 
-function! s:drawer.render_object_items(server, database, object_name, object_type, level) abort
+function! s:drawer.render_object_items(server, database, object_item, object_type, level) abort
+  let object_name = a:object_item.full_name
   " Parse schema and name from object_name (format: [schema].[name])
   let parts = split(a:object_name, '\.')
   let schema = len(parts) > 1 ? substitute(parts[0], '^\[', '', '') : 'dbo'
@@ -570,19 +571,35 @@ function! s:drawer.render_object_items(server, database, object_name, object_typ
 
     " Structural groups for tables
     if g:db_ui_ssms_show_columns
-      call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': 0 })
+      let columns_group = a:object_item.structural_groups.columns
+      call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': columns_group.expanded })
+      if columns_group.expanded
+        call self.render_structural_group_items(columns_group.data, 'columns', a:server.key_name, a:level + 1)
+      endif
     endif
 
     if g:db_ui_ssms_show_indexes
-      call self.add('Indexes', 'toggle', 'structural_group', g:db_ui_icons.indexes, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'indexes', 'expanded': 0 })
+      let indexes_group = a:object_item.structural_groups.indexes
+      call self.add('Indexes', 'toggle', 'structural_group', g:db_ui_icons.indexes, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'indexes', 'expanded': indexes_group.expanded })
+      if indexes_group.expanded
+        call self.render_structural_group_items(indexes_group.data, 'indexes', a:server.key_name, a:level + 1)
+      endif
     endif
 
     if g:db_ui_ssms_show_keys
-      call self.add('Keys', 'toggle', 'structural_group', g:db_ui_icons.keys, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'keys', 'expanded': 0 })
+      let keys_group = a:object_item.structural_groups.keys
+      call self.add('Keys', 'toggle', 'structural_group', g:db_ui_icons.keys, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'keys', 'expanded': keys_group.expanded })
+      if keys_group.expanded
+        call self.render_structural_group_items(keys_group.data, 'keys', a:server.key_name, a:level + 1)
+      endif
     endif
 
     if g:db_ui_ssms_show_constraints
-      call self.add('Constraints', 'toggle', 'structural_group', g:db_ui_icons.constraints, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'constraints', 'expanded': 0 })
+      let constraints_group = a:object_item.structural_groups.constraints
+      call self.add('Constraints', 'toggle', 'structural_group', g:db_ui_icons.constraints, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'constraints', 'expanded': constraints_group.expanded })
+      if constraints_group.expanded
+        call self.render_structural_group_items(constraints_group.data, 'constraints', a:server.key_name, a:level + 1)
+      endif
     endif
 
     if has_key(helpers, 'ALTER')
@@ -604,7 +621,11 @@ function! s:drawer.render_object_items(server, database, object_name, object_typ
     endif
 
     if g:db_ui_ssms_show_columns
-      call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': 0 })
+      let columns_group = a:object_item.structural_groups.columns
+      call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': columns_group.expanded })
+      if columns_group.expanded
+        call self.render_structural_group_items(columns_group.data, 'columns', a:server.key_name, a:level + 1)
+      endif
     endif
 
     if has_key(helpers, 'ALTER')
@@ -625,7 +646,11 @@ function! s:drawer.render_object_items(server, database, object_name, object_typ
       call self.add('EXEC', 'action', 'action', g:db_ui_icons.action_exec, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'EXEC' })
     endif
 
-    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': 0 })
+    let parameters_group = a:object_item.structural_groups.parameters
+    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': parameters_group.expanded })
+    if parameters_group.expanded
+      call self.render_structural_group_items(parameters_group.data, 'parameters', a:server.key_name, a:level + 1)
+    endif
 
     if has_key(helpers, 'ALTER')
       call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
@@ -645,7 +670,11 @@ function! s:drawer.render_object_items(server, database, object_name, object_typ
       call self.add('SELECT', 'action', 'action', g:db_ui_icons.action_select, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'SELECT' })
     endif
 
-    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': 0 })
+    let parameters_group = a:object_item.structural_groups.parameters
+    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': parameters_group.expanded })
+    if parameters_group.expanded
+      call self.render_structural_group_items(parameters_group.data, 'parameters', a:server.key_name, a:level + 1)
+    endif
 
     if has_key(helpers, 'ALTER')
       call self.add('ALTER', 'action', 'action', g:db_ui_icons.action_alter, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'ALTER' })
@@ -659,6 +688,82 @@ function! s:drawer.render_object_items(server, database, object_name, object_typ
       call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': a:object_name, 'schema': schema, 'name': name, 'action': 'DEPENDENCIES' })
     endif
   endif
+endfunction
+
+function! s:drawer.render_structural_group_items(data, group_type, db_key_name, level) abort
+  " Render individual items in a structural group
+  if empty(a:data)
+    call self.add('(No '.a:group_type.')', 'noaction', 'info', '', a:db_key_name, a:level)
+    return
+  endif
+
+  for row in a:data
+    if a:group_type ==# 'columns'
+      " Format: column_name (data_type, nullable)
+      let col_name = type(row) ==? type([]) ? get(row, 0, '') : row
+      let data_type = type(row) ==? type([]) ? get(row, 1, '') : ''
+      let nullable = type(row) ==? type([]) ? get(row, 3, '') : ''
+      let display = col_name
+      if !empty(data_type)
+        let display .= ' ('.data_type
+        if nullable ==# 'YES'
+          let display .= ', NULL'
+        endif
+        let display .= ')'
+      endif
+      call self.add(display, 'noaction', 'column', '', a:db_key_name, a:level)
+
+    elseif a:group_type ==# 'indexes'
+      " Format: index_name (type, unique)
+      let idx_name = type(row) ==? type([]) ? get(row, 0, '') : row
+      let idx_type = type(row) ==? type([]) ? get(row, 1, '') : ''
+      let is_unique = type(row) ==? type([]) ? get(row, 2, '') : ''
+      let display = idx_name
+      if !empty(idx_type)
+        let display .= ' ('.idx_type
+        if is_unique ==# '1' || is_unique ==# 'true'
+          let display .= ', Unique'
+        endif
+        let display .= ')'
+      endif
+      call self.add(display, 'noaction', 'index', '', a:db_key_name, a:level)
+
+    elseif a:group_type ==# 'constraints'
+      " Format: constraint_name (type)
+      let cons_name = type(row) ==? type([]) ? get(row, 0, '') : row
+      let cons_type = type(row) ==? type([]) ? get(row, 1, '') : ''
+      let display = cons_name
+      if !empty(cons_type)
+        let display .= ' ('.cons_type.')'
+      endif
+      call self.add(display, 'noaction', 'constraint', '', a:db_key_name, a:level)
+
+    elseif a:group_type ==# 'parameters'
+      " Format: param_name (data_type, mode)
+      let param_name = type(row) ==? type([]) ? get(row, 0, '') : row
+      let data_type = type(row) ==? type([]) ? get(row, 1, '') : ''
+      let mode = type(row) ==? type([]) ? get(row, 2, '') : ''
+      let display = param_name
+      if !empty(data_type)
+        let display .= ' ('.data_type
+        if !empty(mode)
+          let display .= ', '.mode
+        endif
+        let display .= ')'
+      endif
+      call self.add(display, 'noaction', 'parameter', '', a:db_key_name, a:level)
+
+    elseif a:group_type ==# 'keys'
+      " Format: key info
+      let key_info = type(row) ==? type([]) ? join(row, ' ') : row
+      call self.add(key_info, 'noaction', 'key', '', a:db_key_name, a:level)
+
+    else
+      " Generic fallback
+      let item_str = type(row) ==? type([]) ? join(row, ' | ') : row
+      call self.add(item_str, 'noaction', 'item', '', a:db_key_name, a:level)
+    endif
+  endfor
 endfunction
 
 function! s:drawer.render_tables(tables, db, path, level, schema) abort
@@ -706,6 +811,11 @@ function! s:drawer.toggle_line(edit_action) abort
   endif
 
   let db = self.dbui.dbs[item.dbui_db_key_name]
+
+  " Handle SSMS-style structural groups (Columns, Indexes, etc.)
+  if item.type ==? 'structural_group'
+    return self.toggle_structural_group(db, item)
+  endif
 
   " Handle SSMS-style server/database/object type navigation
   if item.type ==? 'server'
@@ -835,6 +945,44 @@ function! s:drawer.toggle_db_level_ssms_item(db, item, edit_action) abort
     endif
 
     return self.render()
+  endif
+
+  return self.render()
+endfunction
+
+function! s:drawer.toggle_structural_group(db, item) abort
+  " Toggle structural groups like Columns, Indexes, Keys, Constraints, Parameters
+  let database = a:db
+  if has_key(a:item, 'database_name') && has_key(a:db, 'databases') && has_key(a:db.databases.items, a:item.database_name)
+    let database = a:db.databases.items[a:item.database_name]
+  endif
+
+  " Find the object item that contains this structural group
+  let object_type = a:item.object_type
+  let object_name = a:item.object_name
+
+  " Get the object item
+  let object_item = {}
+  if object_type ==# 'tables'
+    if has_key(database.tables.items, object_name)
+      let object_item = database.tables.items[object_name]
+    endif
+  elseif has_key(database, 'object_types') && has_key(database.object_types, object_type) && has_key(database.object_types[object_type].items, object_name)
+    let object_item = database.object_types[object_type].items[object_name]
+  endif
+
+  if empty(object_item)
+    return db_ui#notifications#error('Object not found: '.object_name)
+  endif
+
+  " Toggle the structural group
+  let group_type = a:item.group_type
+  let group = object_item.structural_groups[group_type]
+  let group.expanded = !group.expanded
+
+  " Fetch data if expanding for the first time
+  if group.expanded && empty(group.data)
+    let group.data = self.dbui.populate_structural_group(database, a:item.schema, a:item.name, group_type)
   endif
 
   return self.render()
