@@ -1014,6 +1014,43 @@ function! s:drawer.execute_object_action(item, edit_action) abort
     return db_ui#notifications#error('No action template found for '.a:item.action_type.' on '.a:item.object_type)
   endif
 
+  " For ALTER action, execute the query and populate buffer with the result
+  if a:item.action_type ==# 'ALTER'
+    " For server-level connections, prepend database context switch
+    if has_key(a:item, 'database_name') && has_key(db, 'databases')
+      let context_switch = self.get_database_context_switch(db.scheme, a:item.database_name)
+      if !empty(context_switch)
+        let sql = context_switch . "\n\n" . sql
+      endif
+    endif
+
+    " Execute the query to get the object definition
+    try
+      let result = db#query(db.conn, sql)
+
+      " Parse the result to extract the definition
+      let definition = self.parse_alter_result(result, database.scheme)
+
+      if empty(definition)
+        return db_ui#notifications#error('Could not retrieve definition for '.a:item.object_name)
+      endif
+
+      " Create buffer with the object definition
+      let buffer_item = {
+            \ 'action': 'open',
+            \ 'type': 'query',
+            \ 'label': a:item.action_type.' - '.a:item.object_name,
+            \ 'dbui_db_key_name': db.key_name,
+            \ 'content': definition,
+            \ }
+
+      return self.get_query().open(buffer_item, a:edit_action)
+    catch /.*/
+      return db_ui#notifications#error('Error fetching definition: '.v:exception)
+    endtry
+  endif
+
+  " For other actions (SELECT, EXEC, DROP, DEPENDENCIES), use the query as-is
   " For server-level connections, prepend database context switch
   if has_key(a:item, 'database_name') && has_key(db, 'databases')
     let context_switch = self.get_database_context_switch(db.scheme, a:item.database_name)
@@ -1033,6 +1070,85 @@ function! s:drawer.execute_object_action(item, edit_action) abort
 
   " Open the query buffer
   return self.get_query().open(buffer_item, a:edit_action)
+endfunction
+
+function! s:drawer.parse_alter_result(result, scheme) abort
+  " Parse the query result to extract object definition
+  let scheme = tolower(a:scheme)
+
+  " Result is a list of lines from the query execution
+  if empty(a:result)
+    return ''
+  endif
+
+  " For SQL Server, the result format varies by query type
+  if scheme =~? '^sqlserver' || scheme =~? '^mssql'
+    " SQL Server returns definition in first data row
+    " Skip header lines and extract the definition
+    let definition_lines = []
+    let in_data = 0
+
+    for line in a:result
+      " Skip separator lines (-----)
+      if line =~? '^-\+$'
+        let in_data = 1
+        continue
+      endif
+
+      " Skip empty lines at start
+      if !in_data && empty(trim(line))
+        continue
+      endif
+
+      " Collect data lines
+      if in_data && !empty(trim(line))
+        call add(definition_lines, line)
+      endif
+    endfor
+
+    return join(definition_lines, "\n")
+  elseif scheme =~? '^postgres'
+    " PostgreSQL pg_get_viewdef/pg_get_functiondef returns clean definition
+    " Skip header and separator, get the definition
+    let definition_lines = []
+    let skip_lines = 2  " Skip header and separator
+
+    for idx in range(len(a:result))
+      if idx < skip_lines
+        continue
+      endif
+
+      let line = a:result[idx]
+      if !empty(trim(line))
+        call add(definition_lines, line)
+      endif
+    endfor
+
+    return join(definition_lines, "\n")
+  elseif scheme =~? '^mysql' || scheme =~? '^mariadb'
+    " MySQL SHOW CREATE returns "Create Table" or "Create View" in second column
+    " Format: TableName | CREATE TABLE ...
+    let definition_lines = []
+    let skip_lines = 3  " Skip header, separator, and column names
+
+    for idx in range(len(a:result))
+      if idx < skip_lines
+        continue
+      endif
+
+      let line = a:result[idx]
+      " Split by tab or pipe and get the second column
+      let parts = split(line, '\t\|\|')
+      if len(parts) >= 2
+        call add(definition_lines, parts[1])
+      endif
+    endfor
+
+    return join(definition_lines, "\n")
+  else
+    " Generic: skip first 2 lines (header and separator) and return the rest
+    return join(a:result[2:], "\n")
+  endif
 endfunction
 
 function! s:drawer.get_database_context_switch(scheme, database_name) abort
