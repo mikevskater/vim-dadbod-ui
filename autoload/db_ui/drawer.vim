@@ -657,7 +657,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
 
     if g:db_ui_ssms_show_indexes
       let indexes_group = a:object_item.structural_groups.indexes
-      call self.add('Indexes', 'toggle', 'structural_group', g:db_ui_icons.indexes, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'indexes', 'expanded': indexes_group.expanded })
+      let indexes_label = self.build_structural_group_label('Indexes', indexes_group, a:server.key_name, a:database.name, a:object_type, object_name, 'indexes')
+      call self.add(indexes_label, 'toggle', 'structural_group', g:db_ui_icons.indexes, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'indexes', 'expanded': indexes_group.expanded })
       if indexes_group.expanded
         call self.render_structural_group_items(indexes_group.data, 'indexes', a:server.key_name, a:level + 1, filter_context)
       endif
@@ -665,7 +666,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
 
     if g:db_ui_ssms_show_keys
       let keys_group = a:object_item.structural_groups.keys
-      call self.add('Keys', 'toggle', 'structural_group', g:db_ui_icons.keys, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'keys', 'expanded': keys_group.expanded })
+      let keys_label = self.build_structural_group_label('Keys', keys_group, a:server.key_name, a:database.name, a:object_type, object_name, 'keys')
+      call self.add(keys_label, 'toggle', 'structural_group', g:db_ui_icons.keys, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'keys', 'expanded': keys_group.expanded })
       if keys_group.expanded
         call self.render_structural_group_items(keys_group.data, 'keys', a:server.key_name, a:level + 1, filter_context)
       endif
@@ -673,7 +675,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
 
     if g:db_ui_ssms_show_constraints
       let constraints_group = a:object_item.structural_groups.constraints
-      call self.add('Constraints', 'toggle', 'structural_group', g:db_ui_icons.constraints, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'constraints', 'expanded': constraints_group.expanded })
+      let constraints_label = self.build_structural_group_label('Constraints', constraints_group, a:server.key_name, a:database.name, a:object_type, object_name, 'constraints')
+      call self.add(constraints_label, 'toggle', 'structural_group', g:db_ui_icons.constraints, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'constraints', 'expanded': constraints_group.expanded })
       if constraints_group.expanded
         call self.render_structural_group_items(constraints_group.data, 'constraints', a:server.key_name, a:level + 1, filter_context)
       endif
@@ -701,7 +704,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
 
     if g:db_ui_ssms_show_columns
       let columns_group = a:object_item.structural_groups.columns
-      call self.add('Columns', 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': columns_group.expanded })
+      let columns_label = self.build_structural_group_label('Columns', columns_group, a:server.key_name, a:database.name, a:object_type, object_name, 'columns')
+      call self.add(columns_label, 'toggle', 'structural_group', g:db_ui_icons.columns, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'columns', 'expanded': columns_group.expanded })
       if columns_group.expanded
         call self.render_structural_group_items(columns_group.data, 'columns', a:server.key_name, a:level + 1, filter_context)
       endif
@@ -728,7 +732,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     endif
 
     let parameters_group = a:object_item.structural_groups.parameters
-    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': parameters_group.expanded })
+    let parameters_label = self.build_structural_group_label('Parameters', parameters_group, a:server.key_name, a:database.name, a:object_type, object_name, 'parameters')
+    call self.add(parameters_label, 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': parameters_group.expanded })
     if parameters_group.expanded
       call self.render_structural_group_items(parameters_group.data, 'parameters', a:server.key_name, a:level + 1, filter_context)
     endif
@@ -754,7 +759,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
     endif
 
     let parameters_group = a:object_item.structural_groups.parameters
-    call self.add('Parameters', 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': parameters_group.expanded })
+    let parameters_label = self.build_structural_group_label('Parameters', parameters_group, a:server.key_name, a:database.name, a:object_type, object_name, 'parameters')
+    call self.add(parameters_label, 'toggle', 'structural_group', g:db_ui_icons.parameters, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'group_type': 'parameters', 'expanded': parameters_group.expanded })
     if parameters_group.expanded
       call self.render_structural_group_items(parameters_group.data, 'parameters', a:server.key_name, a:level + 1, filter_context)
     endif
@@ -771,6 +777,50 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
       call self.add('DEPENDENCIES', 'action', 'action', g:db_ui_icons.action_dependencies, a:server.key_name, a:level, { 'database_name': a:database.name, 'object_type': a:object_type, 'object_name': object_name, 'schema': schema, 'name': name, 'action_type': 'DEPENDENCIES' })
     endif
   endif
+endfunction
+
+function! s:drawer.build_structural_group_label(base_label, group, server_key, database_name, object_type, object_name, group_type) abort
+  " Build label for structural group with count and filter indicator
+  " Similar to object type groups, but for structural groups (columns, parameters, etc.)
+
+  let total_items = len(a:group.data)
+
+  " Get filter for this structural group
+  let scope = db_ui#filter#build_structural_scope(a:server_key, a:database_name, a:object_type, a:object_name, a:group_type)
+  let filter = db_ui#filter#get(scope)
+
+  " Count filtered items if filter is active
+  let filtered_count = total_items
+  if !empty(filter) && has_key(filter, 'column')
+    let filtered_count = 0
+    for row in a:group.data
+      if type(row) ==? type([]) && len(row) > 0
+        let item_name = row[0]
+        if db_ui#filter#matches(item_name, {'column': filter.column})
+          let filtered_count += 1
+        endif
+      else
+        if db_ui#filter#matches(row, {'column': filter.column})
+          let filtered_count += 1
+        endif
+      endif
+    endfor
+  endif
+
+  " Build count string
+  let count_str = filtered_count
+  if !empty(filter) && filtered_count != total_items
+    let count_str = filtered_count . '/' . total_items
+  endif
+
+  " Build filter indicator
+  let filter_indicator = ''
+  if !empty(filter)
+    let filter_indicator = ' ' . g:db_ui_filter_icon . ' ' . db_ui#filter#format(filter)
+  endif
+
+  " Return full label
+  return a:base_label . ' (' . count_str . ')' . filter_indicator
 endfunction
 
 function! s:drawer.render_structural_group_items(data, group_type, db_key_name, level, ...) abort

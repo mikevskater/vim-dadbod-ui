@@ -176,7 +176,8 @@ let s:postgres_constraints_query = "
       \ ORDER BY tc.constraint_name"
 
 let s:postgres_parameters_query = "
-      \ SELECT p.parameter_name, p.data_type, p.parameter_mode, p.character_maximum_length
+      \ SELECT COALESCE(p.parameter_name, '(return value)') AS parameter_name, p.data_type,
+      \ COALESCE(p.parameter_mode, 'IN') AS parameter_mode, p.character_maximum_length
       \ FROM information_schema.parameters p
       \ WHERE p.specific_schema = '{schema}' AND p.specific_name = '{object_name}'
       \ ORDER BY p.ordinal_position"
@@ -278,7 +279,8 @@ let s:sqlserver_constraints_query = "
       \ ORDER BY tc.CONSTRAINT_NAME"
 
 let s:sqlserver_parameters_query = "
-      \ SELECT p.PARAMETER_NAME, p.DATA_TYPE, p.PARAMETER_MODE, p.CHARACTER_MAXIMUM_LENGTH
+      \ SELECT ISNULL(p.PARAMETER_NAME, '(return value)') AS PARAMETER_NAME, p.DATA_TYPE,
+      \ ISNULL(p.PARAMETER_MODE, 'IN') AS PARAMETER_MODE, p.CHARACTER_MAXIMUM_LENGTH
       \ FROM INFORMATION_SCHEMA.PARAMETERS p
       \ WHERE p.SPECIFIC_SCHEMA = '{schema}' AND p.SPECIFIC_NAME = '{object_name}'
       \ ORDER BY p.ORDINAL_POSITION"
@@ -376,7 +378,8 @@ let s:mysql_constraints_query = "
       \ ORDER BY constraint_name"
 
 let s:mysql_parameters_query = "
-      \ SELECT parameter_name, data_type, parameter_mode, character_maximum_length
+      \ SELECT IFNULL(parameter_name, '(return value)') AS parameter_name, data_type,
+      \ IFNULL(parameter_mode, 'IN') AS parameter_mode, character_maximum_length
       \ FROM information_schema.parameters
       \ WHERE specific_schema = '{schema}' AND specific_name = '{object_name}'
       \ ORDER BY ordinal_position"
