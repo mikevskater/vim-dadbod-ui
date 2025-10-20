@@ -1019,7 +1019,7 @@ function! s:drawer.execute_object_action(item, edit_action) abort
         \ 'action': 'open',
         \ 'type': 'query',
         \ 'label': a:item.action_type.' - '.a:item.object_name,
-        \ 'dbui_db_key_name': database.key_name,
+        \ 'dbui_db_key_name': db.key_name,
         \ 'content': sql,
         \ }
 
