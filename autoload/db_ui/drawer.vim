@@ -593,7 +593,8 @@ function! s:drawer.render_object_items(server, database, object_item, object_typ
   let object_name = a:object_item.full_name
   " Parse schema and name from object_name (format: [schema].[name])
   " Use pattern matching to handle brackets correctly
-  let match_result = matchlist(object_name, '^\[\?\([^\]]*\)\]\?\.\[\?\(.*\)\]\?$')
+  " Pattern explanation: [schema].[name] or schema.name, extract content inside brackets
+  let match_result = matchlist(object_name, '^\[\?\([^\]]*\)\]\?\.\[\?\([^\]]*\)\]\?$')
   if !empty(match_result) && len(match_result) >= 3
     let schema = match_result[1]
     let name = match_result[2]
