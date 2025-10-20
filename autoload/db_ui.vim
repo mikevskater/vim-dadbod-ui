@@ -719,6 +719,9 @@ function! s:dbui.populate_object_type(database, object_type, scheme_info) abort
             \ }
     endfor
 
+    " Sort by schema then object name
+    call sort(a:database.object_types[a:object_type].list)
+
     call db_ui#notifications#info('Found '.len(a:database.object_types[a:object_type].list).' '.a:object_type.' after '.split(reltimestr(reltime(query_time)))[0].' sec.')
   catch /.*/
     call db_ui#notifications#error('Error fetching '.a:object_type.': '.v:exception)

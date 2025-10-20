@@ -1143,6 +1143,34 @@ function! s:drawer.populate_tables(db) abort
     return a:db
   endif
 
+  " For SSMS-style mode with schema support, use schema queries
+  if g:db_ui_use_ssms_style && g:db_ui_show_schema_prefix
+    let scheme_info = db_ui#schemas#get(a:db.scheme)
+    if has_key(scheme_info, 'schemes_tables_query')
+      try
+        let result = db_ui#schemas#query(a:db, scheme_info, scheme_info.schemes_tables_query)
+        let parsed_result = scheme_info.parse_results(result, 2)
+
+        for row in parsed_result
+          if type(row) ==? type([]) && len(row) >= 2
+            let schema_name = trim(row[0])
+            let table_name = trim(row[1])
+            let full_name = '['.schema_name.'].['.table_name.']'
+            call add(a:db.tables.list, full_name)
+          endif
+        endfor
+
+        " Sort by schema then table name
+        call sort(a:db.tables.list)
+        call self.populate_table_items(a:db.tables)
+        return a:db
+      catch /.*/
+        " Fall back to adapter method if schema query fails
+      endtry
+    endif
+  endif
+
+  " Legacy method using adapter
   let tables = db#adapter#call(a:db.conn, 'tables', [a:db.conn], [])
 
   let a:db.tables.list = tables
