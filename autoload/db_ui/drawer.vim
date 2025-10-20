@@ -1817,17 +1817,17 @@ function! s:drawer.apply_filter() abort
 
   " Determine what type of item we're filtering
   " Check for structural group first (Columns, Indexes, etc.)
-  if item.type ==? 'structural_group'
+  if item.action ==? 'toggle' && item.type ==? 'structural_group'
     " Structural group (Columns, Indexes, Keys, etc.)
     let scope = db_ui#filter#build_structural_scope(item.dbui_db_key_name, item.database_name, item.object_type, item.object_name, item.group_type)
     call s:prompt_structural_filter(scope, item.group_type)
     return self.render()
 
   " Check for object type group (TABLES, VIEWS, PROCEDURES, FUNCTIONS)
-  " These items have object_type but NOT object_name (or object_name is not set)
-  elseif item.type ==? 'toggle' && has_key(item, 'object_type') && has_key(item, 'database_name')
+  " These items have object_type and database_name but NOT object_name
+  elseif item.action ==? 'toggle' && has_key(item, 'object_type') && has_key(item, 'database_name')
     " Verify this is not an individual object (which would have object_name set)
-    if !has_key(item, 'object_name') || empty(get(item, 'object_name', ''))
+    if !has_key(item, 'object_name')
       " Object type group (TABLES, VIEWS, PROCEDURES, FUNCTIONS)
       let scope = db_ui#filter#build_scope(item.dbui_db_key_name, item.database_name, item.object_type)
       call s:prompt_object_type_filter(scope, item.object_type)
@@ -1845,7 +1845,7 @@ function! s:drawer.clear_filter() abort
   let item = self.get_current_item()
 
   " Check for structural group first
-  if item.type ==? 'structural_group'
+  if item.action ==? 'toggle' && item.type ==? 'structural_group'
     " Structural group
     let scope = db_ui#filter#build_structural_scope(item.dbui_db_key_name, item.database_name, item.object_type, item.object_name, item.group_type)
     if db_ui#filter#has_filter(scope)
@@ -1857,9 +1857,9 @@ function! s:drawer.clear_filter() abort
     endif
 
   " Check for object type group
-  elseif item.type ==? 'toggle' && has_key(item, 'object_type') && has_key(item, 'database_name')
+  elseif item.action ==? 'toggle' && has_key(item, 'object_type') && has_key(item, 'database_name')
     " Verify this is not an individual object
-    if !has_key(item, 'object_name') || empty(get(item, 'object_name', ''))
+    if !has_key(item, 'object_name')
       " Object type group
       let scope = db_ui#filter#build_scope(item.dbui_db_key_name, item.database_name, item.object_type)
       if db_ui#filter#has_filter(scope)
