@@ -186,14 +186,19 @@ function! s:notification_echo(msg, opts) abort
   silent! exe 'echohl Echo'.s:hl_by_type[type]
   redraw!
   let title = !empty(title) ? title.' ' : ''
+
+  " Use 'echo' for info messages to avoid 'Press ENTER' prompts
+  " Use 'echom' for errors/warnings so they stay in message history
+  let echo_cmd = type ==? 'info' ? 'echo' : 'echom'
+
   if type(a:msg) ==? type('')
-    echom title.a:msg
+    exe echo_cmd.' title.a:msg'
   elseif type(a:msg) !=? type([])
-    echom title.string(a:msg)
+    exe echo_cmd.' title.string(a:msg)'
   else
-    echom title.a:msg[0]
+    exe echo_cmd.' title.a:msg[0]'
     for msg in a:msg[1:]
-      echom msg
+      exe echo_cmd.' msg'
     endfor
   endif
   echohl None
