@@ -567,7 +567,3 @@ or if you want to disable the progress entirely set to 1.
 ```vimL
 let g:db_ui_disable_progress_bar = 1
 ```
-
-## TODO
-
-* [ ] Test with more db types
