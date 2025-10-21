@@ -254,6 +254,168 @@ SSMS-style mode works with:
 - **PostgreSQL** (full support)
 - **MySQL/MariaDB** (full support)
 
+### Lualine Integration
+
+**Note: This feature requires [lualine.nvim](https://github.com/nvim-lualine/lualine.nvim) to be installed.**
+
+vim-dadbod-ui provides a custom lualine component that displays the current database connection information in your statusline. Similar to Redgate's SQL Server color-coding feature, you can configure different colors for different connections to visually distinguish between production, development, and other environments.
+
+#### Basic Setup
+
+**⚠️ IMPORTANT:** You must add the `db_ui` component to your lualine configuration for this feature to work.
+
+Add this to your `init.lua` (or wherever you configure lualine):
+
+```lua
+require('lualine').setup {
+  sections = {
+    lualine_c = {
+      'filename',
+      'db_ui',  -- Add this component
+    }
+  }
+}
+```
+
+After adding the component, restart Neovim or reload your config (`:source $MYVIMRC`).
+
+The component will display the current database connection in the format: `server → schema → table`
+
+**See [LUALINE_SETUP.md](LUALINE_SETUP.md) for detailed setup instructions and troubleshooting.**
+
+#### Interactive Color Setting
+
+**New in this version:** Set connection colors interactively without editing config files!
+
+When lualine is installed, you can set colors for any database connection directly from the DBUI drawer:
+
+1. Open the DBUI drawer (`:DBUI`)
+2. Navigate to any database connection
+3. Press `<Leader>c` to set the connection color (typically `\c` by default)
+4. Choose from preset colors or create custom colors
+5. Colors are automatically saved and persist across sessions
+
+**Preset Colors:**
+- Red (Production) - High visibility warning
+- Green (Development) - Safe environment
+- Yellow (Staging) - Caution
+- Blue (QA/Testing)
+- Orange (UAT)
+- Purple (Backup/Reporting)
+- Gray (Default)
+- Custom - Enter your own hex colors
+
+Colors are saved to `~/.local/share/db_ui/lualine_colors.json` (or your configured `g:db_ui_save_location`).
+
+#### Manual Color Configuration
+
+You can also configure colors manually in your config file to prevent accidental operations on production databases:
+
+```lua
+-- In your Neovim config (init.lua)
+vim.g.db_ui_lualine_colors = {
+  -- Red background for production - high visibility warning
+  ['ProductionDB'] = { fg = '#ffffff', bg = '#ff0000', gui = 'bold' },
+  ['prod*'] = { fg = '#ffffff', bg = '#ff0000' },  -- Pattern match
+
+  -- Green background for development
+  ['DevDB'] = { fg = '#000000', bg = '#00ff00' },
+  ['*_dev'] = { fg = '#000000', bg = '#00ff00' },  -- Pattern match
+
+  -- Yellow background for staging
+  ['StagingDB'] = { fg = '#000000', bg = '#ffff00' },
+
+  -- Blue background for local
+  ['localhost'] = { fg = '#ffffff', bg = '#0000ff' },
+}
+
+-- Default color for connections not specified above
+vim.g.db_ui_lualine_default_color = { fg = '#ffffff', bg = '#666666' }
+```
+
+Or in VimScript (init.vim):
+
+```vim
+let g:db_ui_lualine_colors = {
+\   'ProductionDB': { 'fg': '#ffffff', 'bg': '#ff0000', 'gui': 'bold' },
+\   'prod*': { 'fg': '#ffffff', 'bg': '#ff0000' },
+\   'DevDB': { 'fg': '#000000', 'bg': '#00ff00' },
+\   '*_dev': { 'fg': '#000000', 'bg': '#00ff00' },
+\ }
+
+let g:db_ui_lualine_default_color = { 'fg': '#ffffff', 'bg': '#666666' }
+```
+
+#### Color Configuration Options
+
+Colors are matched in the following order:
+
+1. **Exact match**: Connection name matches exactly (e.g., `'ProductionDB'`)
+2. **Pattern match**: Using wildcards `*` and `?` (e.g., `'prod*'`, `'*production*'`, `'db_*_live'`)
+3. **Default color**: Falls back to `g:db_ui_lualine_default_color`
+4. **Lualine default**: If no colors configured, uses lualine's default section colors
+
+**Color format:**
+- `fg`: Foreground color (text color) - hex color code (e.g., `'#ffffff'`)
+- `bg`: Background color - hex color code (e.g., `'#ff0000'`)
+- `gui`: Optional text style - `'bold'`, `'italic'`, `'underline'`, or combination `'bold,italic'`
+
+#### Advanced Component Configuration
+
+For more control, use the component table directly:
+
+```lua
+require('lualine').setup {
+  sections = {
+    lualine_c = {
+      {
+        'db_ui',
+        icon = '',  -- Custom icon (requires Nerd Fonts)
+        color = function()
+          -- Your custom color logic here
+          return { fg = '#ffffff', bg = '#0000ff' }
+        end,
+      }
+    }
+  }
+}
+```
+
+#### Example: Production Safety Setup
+
+A recommended configuration for preventing production mistakes:
+
+```lua
+-- Bright red for production - impossible to miss
+vim.g.db_ui_lualine_colors = {
+  ['*prod*'] = { fg = '#ffffff', bg = '#cc0000', gui = 'bold' },
+  ['*production*'] = { fg = '#ffffff', bg = '#cc0000', gui = 'bold' },
+  ['*live*'] = { fg = '#ffffff', bg = '#cc0000', gui = 'bold' },
+
+  -- Safe green for development
+  ['*dev*'] = { fg = '#000000', bg = '#00cc00' },
+  ['*development*'] = { fg = '#000000', bg = '#00cc00' },
+  ['localhost'] = { fg = '#000000', bg = '#00cc00' },
+
+  -- Caution yellow for staging
+  ['*staging*'] = { fg = '#000000', bg = '#cccc00' },
+  ['*uat*'] = { fg = '#000000', bg = '#cccc00' },
+}
+
+-- Gray for unclassified connections
+vim.g.db_ui_lualine_default_color = { fg = '#ffffff', bg = '#666666' }
+```
+
+#### Available Commands
+
+```vim
+:DBUISetLualineColor ConnectionName     " Interactively set color for a connection
+:DBUIRemoveLualineColor ConnectionName  " Remove color for a connection
+:DBUIListLualineColors                  " List all saved connection colors
+```
+
+**Keyboard Shortcut:** When in the DBUI drawer with lualine installed, press `<Leader>c` on any database connection to set its color (typically `\c` by default).
+
 ## Settings
 
 An overview of all settings and their default values can be found at `:help vim-dadbod-ui`.
