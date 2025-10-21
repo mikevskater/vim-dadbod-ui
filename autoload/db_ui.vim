@@ -128,6 +128,76 @@ function! db_ui#print_last_query_info() abort
   return db_ui#notifications#info(content, {'echo': 1})
 endfunction
 
+function! db_ui#change_connection() abort
+  call s:init()
+
+  " Get list of available connections
+  if !len(s:dbui_instance.dbs_list)
+    return db_ui#notifications#error('No database connections found. Add connections to use this feature.')
+  endif
+
+  " Build connection list for selection
+  let connections = []
+  for db in s:dbui_instance.dbs_list
+    let key_name = printf('%s_%s', db.name, db.source)
+    let is_connected = !empty(s:dbui_instance.dbs[key_name].conn) ? ' ✓' : ''
+    call add(connections, db.name . is_connected)
+  endfor
+
+  " Prompt user to select connection
+  echohl Title
+  echo 'Select database connection:'
+  echohl None
+  echo ''
+  for idx in range(len(connections))
+    " Print number in one color, connection name in another
+    echohl Number
+    echon printf('%d', idx + 1)
+    echohl Special
+    echon '. '
+    echohl Identifier
+    echon connections[idx]
+    echohl None
+    echo ''
+  endfor
+  echo ''
+  echohl Question
+  let choice = str2nr(input('Enter number: '))
+  echohl None
+  redraw!
+
+  if choice < 1 || choice > len(connections)
+    return db_ui#notifications#warning('Invalid selection or cancelled')
+  endif
+
+  " Get selected database
+  let selected_db = s:dbui_instance.dbs_list[choice - 1]
+  let key_name = printf('%s_%s', selected_db.name, selected_db.source)
+  let db = s:dbui_instance.dbs[key_name]
+
+  " Connect if not already connected
+  if empty(db.conn)
+    call db_ui#notifications#info('Connecting to ' . selected_db.name . '...')
+    call s:dbui_instance.connect(db)
+  endif
+
+  " Set buffer variables to use this connection
+  let b:db = db.conn
+  let b:dbui_db_key_name = key_name
+
+  " Clear other buffer variables to avoid conflicts
+  unlet! b:dbui_table_name
+  unlet! b:dbui_schema_name
+  unlet! b:dbui_db_name
+
+  " Refresh lualine to show new connection
+  if exists(':LualineRefresh') == 2
+    LualineRefresh
+  endif
+
+  call db_ui#notifications#info('Buffer connected to: ' . selected_db.name)
+endfunction
+
 function! db_ui#statusline(...)
   let db_key_name = get(b:, 'dbui_db_key_name', '')
   let dbout = get(b:, 'db', '')
