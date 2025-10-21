@@ -61,6 +61,11 @@ function! s:drawer.open(...) abort
   nnoremap <silent><buffer> <Plug>(DBUI_ClearAllFilters) :call <sid>method('clear_all_filters')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_ShowFilters) :call <sid>method('show_filters')<CR>
 
+  " Lualine color mapping (only if lualine is available)
+  if exists('*luaeval') && luaeval('pcall(require, "lualine")')
+    nnoremap <silent><buffer> <Plug>(DBUI_SetLualineColor) :call <sid>method('set_lualine_color')<CR>
+  endif
+
   nnoremap <silent><buffer> ? :call <sid>method('toggle_help')<CR>
   augroup db_ui
     autocmd! * <buffer>
@@ -263,6 +268,22 @@ function! s:drawer.rename_line() abort
   return
 endfunction
 
+function! s:drawer.set_lualine_color() abort
+  let item = self.get_current_item()
+
+  " Only allow color setting on database/server connections
+  if item.type !=? 'db' && item.type !=? 'server'
+    call db_ui#notifications#warning('Lualine colors can only be set on database connections')
+    return
+  endif
+
+  let db = self.dbui.dbs[item.dbui_db_key_name]
+  let connection_name = db.name
+
+  " Prompt user to set color
+  call db_ui#lualine_colors#prompt_set_color(connection_name)
+endfunction
+
 function! s:drawer.add_connection() abort
   return self.get_connections().add()
 endfunction
@@ -392,6 +413,9 @@ function! s:drawer.render_help() abort
     call self.add('" A - Add connection', 'noaction', 'help', '', '', 0)
     call self.add('" H - Toggle database details', 'noaction', 'help', '', '', 0)
     call self.add('" r - Rename/Edit buffer/connection/saved query', 'noaction', 'help', '', '', 0)
+    if exists('*luaeval') && luaeval('pcall(require, "lualine")')
+      call self.add('" <Leader>c - Set lualine connection color', 'noaction', 'help', '', '', 0)
+    endif
     call self.add('" q - Close drawer', 'noaction', 'help', '', '', 0)
     call self.add('" <C-j>/<C-k> - Go to last/first sibling', 'noaction', 'help', '', '', 0)
     call self.add('" K/J - Go to prev/next sibling', 'noaction', 'help', '', '', 0)

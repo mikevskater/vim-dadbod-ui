@@ -57,6 +57,11 @@ let g:db_ui_filter_case_sensitive = get(g:, 'db_ui_filter_case_sensitive', 0)
 let g:db_ui_filter_use_regex = get(g:, 'db_ui_filter_use_regex', 1)
 let g:db_ui_filter_icon = get(g:, 'db_ui_filter_icon', '🔍')
 
+" Lualine integration configuration
+" Example: { 'ProductionDB': { 'fg': '#ffffff', 'bg': '#ff0000' }, 'DevDB': { 'fg': '#000000', 'bg': '#00ff00' } }
+let g:db_ui_lualine_colors = get(g:, 'db_ui_lualine_colors', {})
+let g:db_ui_lualine_default_color = get(g:, 'db_ui_lualine_default_color', {})
+
 let s:dbui_icons = get(g:, 'db_ui_icons', {})
 let s:expanded_icon = get(s:dbui_icons, 'expanded', '▾')
 let s:collapsed_icon = get(s:dbui_icons, 'collapsed', '▸')
@@ -185,3 +190,9 @@ command! DBUIRenameBuffer call db_ui#rename_buffer()
 command! DBUILastQueryInfo call db_ui#print_last_query_info()
 command! DBUIClearCache call db_ui#schemas#clear_cache()
 command! -nargs=1 DBUIClearCacheFor call db_ui#schemas#clear_cache_for(<f-args>)
+command! DBUIChangeConnection call db_ui#change_connection()
+
+" Lualine color management commands
+command! -nargs=1 DBUISetLualineColor call db_ui#lualine_colors#prompt_set_color(<f-args>)
+command! -nargs=1 DBUIRemoveLualineColor call db_ui#lualine_colors#remove_color(<f-args>)
+command! DBUIListLualineColors call db_ui#lualine_colors#list()

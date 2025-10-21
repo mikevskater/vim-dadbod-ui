@@ -10,6 +10,12 @@ call db_ui#utils#set_mapping('A', '<Plug>(DBUI_AddConnection)')
 call db_ui#utils#set_mapping('H', '<Plug>(DBUI_ToggleDetails)')
 call db_ui#utils#set_mapping('r', '<Plug>(DBUI_RenameLine)')
 call db_ui#utils#set_mapping('q', '<Plug>(DBUI_Quit)')
+
+" Lualine color mapping (only if lualine is available)
+if exists('*luaeval') && luaeval('pcall(require, "lualine")')
+  call db_ui#utils#set_mapping('<Leader>c', '<Plug>(DBUI_SetLualineColor)')
+endif
+
 call db_ui#utils#set_mapping('<c-k>', '<Plug>(DBUI_GotoFirstSibling)')
 call db_ui#utils#set_mapping('<c-j>', '<Plug>(DBUI_GotoLastSibling)')
 call db_ui#utils#set_mapping('<C-p>', '<Plug>(DBUI_GotoParentNode)')
