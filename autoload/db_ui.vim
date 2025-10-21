@@ -60,6 +60,9 @@ function! db_ui#find_buffer() abort
   if exists('*vim_dadbod_completion#fetch')
     call vim_dadbod_completion#fetch(bufnr(''))
   endif
+  if exists('*db_ui#completion#init_cache')
+    call db_ui#completion#init_cache(db)
+  endif
   let s:dbui_instance.dbs[db].expanded = 1
   let s:dbui_instance.dbs[db].buffers.expanded = 1
   call s:dbui_instance.drawer.open()
@@ -97,6 +100,49 @@ function! db_ui#get_conn_info(db_key_name) abort
         \ 'scheme': db.scheme,
         \ 'connected': !empty(db.conn),
         \ }
+endfunction
+
+" Get completion-specific connection info for IntelliSense
+" @param db_key_name - Database identifier
+" @return Dictionary with extended metadata for completions
+function! db_ui#get_completion_info(db_key_name) abort
+  if empty(s:dbui_instance)
+    return {}
+  endif
+  if !has_key(s:dbui_instance.dbs, a:db_key_name)
+    return {}
+  endif
+  let db = s:dbui_instance.dbs[a:db_key_name]
+  call s:dbui_instance.connect(db)
+
+  " Build extended info with all object types
+  let info = {
+        \ 'url': db.url,
+        \ 'conn': db.conn,
+        \ 'scheme': db.scheme,
+        \ 'connected': !empty(db.conn),
+        \ 'is_server': get(db, 'is_server', 0),
+        \ 'tables': db.tables.list,
+        \ 'schemas': db.schemas.list,
+        \ 'databases': [],
+        \ 'views': [],
+        \ 'procedures': [],
+        \ 'functions': []
+        \ }
+
+  " Add SSMS-style object types if available
+  if has_key(db, 'object_types')
+    let info.views = get(get(db.object_types, 'views', {}), 'list', [])
+    let info.procedures = get(get(db.object_types, 'procedures', {}), 'list', [])
+    let info.functions = get(get(db.object_types, 'functions', {}), 'list', [])
+  endif
+
+  " Add databases for server-level connections
+  if has_key(db, 'databases')
+    let info.databases = get(db.databases, 'list', [])
+  endif
+
+  return info
 endfunction
 
 function! db_ui#query(query) abort

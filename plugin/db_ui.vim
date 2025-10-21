@@ -52,6 +52,14 @@ let g:db_ui_cache_ttl = get(g:, 'db_ui_cache_ttl', 300)  " Cache TTL in seconds 
 let g:db_ui_max_items_per_page = get(g:, 'db_ui_max_items_per_page', 500)  " Pagination threshold
 let g:db_ui_show_loading_indicator = get(g:, 'db_ui_show_loading_indicator', 1)
 
+" IntelliSense completion configuration
+let g:db_ui_enable_intellisense = get(g:, 'db_ui_enable_intellisense', 1)
+let g:db_ui_intellisense_cache_ttl = get(g:, 'db_ui_intellisense_cache_ttl', 300)  " Cache TTL in seconds (default: 5 minutes)
+let g:db_ui_intellisense_max_completions = get(g:, 'db_ui_intellisense_max_completions', 100)  " Max completion items per category
+let g:db_ui_intellisense_show_system_objects = get(g:, 'db_ui_intellisense_show_system_objects', 0)  " Show system objects in completions
+let g:db_ui_intellisense_fetch_external_db = get(g:, 'db_ui_intellisense_fetch_external_db', 1)  " Auto-fetch external database metadata
+let g:db_ui_intellisense_min_chars = get(g:, 'db_ui_intellisense_min_chars', 1)  " Minimum characters to trigger completion
+
 " Filter configuration
 let g:db_ui_filter_case_sensitive = get(g:, 'db_ui_filter_case_sensitive', 0)
 let g:db_ui_filter_use_regex = get(g:, 'db_ui_filter_use_regex', 1)
@@ -191,6 +199,12 @@ command! DBUILastQueryInfo call db_ui#print_last_query_info()
 command! DBUIClearCache call db_ui#schemas#clear_cache()
 command! -nargs=1 DBUIClearCacheFor call db_ui#schemas#clear_cache_for(<f-args>)
 command! DBUIChangeConnection call db_ui#change_connection()
+
+" IntelliSense completion commands
+command! DBUIRefreshCompletion call db_ui#completion#refresh_cache(get(b:, 'dbui_db_key_name', ''))
+command! DBUIRefreshCompletionAll call db_ui#completion#clear_all_caches()
+command! DBUICompletionStatus call db_ui#completion#show_status()
+command! DBUICompletionDebug call db_ui#completion#toggle_debug()
 
 " Lualine color management commands
 command! -nargs=1 DBUISetLualineColor call db_ui#lualine_colors#prompt_set_color(<f-args>)

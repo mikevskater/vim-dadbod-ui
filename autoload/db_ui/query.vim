@@ -191,6 +191,11 @@ function! s:query.setup_buffer(db, opts, buffer_name, was_single_win) abort
     endif
     autocmd BufDelete,BufWipeout <buffer> silent! call s:method('remove_buffer', str2nr(expand('<abuf>')))
   augroup END
+
+  " Initialize IntelliSense completion cache
+  if exists('*db_ui#completion#init_cache') && get(g:, 'db_ui_enable_intellisense', 1)
+    call db_ui#completion#init_cache(a:db.key_name)
+  endif
 endfunction
 
 function! s:method(name, ...) abort
