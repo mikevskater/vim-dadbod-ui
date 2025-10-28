@@ -206,6 +206,18 @@ command! DBUIRefreshCompletionAll call db_ui#completion#clear_all_caches()
 command! DBUICompletionStatus call db_ui#completion#show_status()
 command! DBUICompletionDebug call db_ui#completion#toggle_debug()
 
+" Native Neovim Test Suite (IntelliSense & Features)
+command! DBUITestFullSuite lua require('db_ui.tests.init').run_all()
+command! DBUITestIntellisense lua require('db_ui.tests.init').run_intellisense()
+command! DBUITestConnections lua require('db_ui.tests.init').run_connections()
+
+" Database Connection Type Tests
+command! DBUITestAllConnections lua require('db_ui.tests.all_connections').run_all_connection_tests()
+command! -nargs=1 DBUITestConnection lua require('db_ui.tests.all_connections').run_specific(<f-args>)
+command! DBUITestConfig lua require('db_ui.tests.test_config').edit_config()
+command! DBUITestConfigStatus lua require('db_ui.tests.test_config').print_status()
+command! DBUITestConfigReload lua require('db_ui.tests.test_config').reload_config()
+
 " Lualine color management commands
 command! -nargs=1 DBUISetLualineColor call db_ui#lualine_colors#prompt_set_color(<f-args>)
 command! -nargs=1 DBUIRemoveLualineColor call db_ui#lualine_colors#remove_color(<f-args>)
