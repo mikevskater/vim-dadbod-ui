@@ -195,6 +195,90 @@ function! s:get_databases_from_dbui(db_key_name) abort
   return get(db.databases, 'list', [])
 endfunction
 
+" Get synonyms from DBUI cache
+" @param db_key_name - Database identifier
+" @param external_db_name - Optional external database name
+" @return List of synonym objects
+function! s:get_synonyms_from_dbui(db_key_name, ...) abort
+  let external_db = get(a:, 1, '')
+  let db = s:get_dbui_database(a:db_key_name)
+  if empty(db)
+    return []
+  endif
+
+  if !empty(external_db) && has_key(db, 'databases')
+    if !has_key(db.databases.items, external_db)
+      return []
+    endif
+    let target_db = db.databases.items[external_db]
+  else
+    let target_db = db
+  endif
+
+  if has_key(target_db, 'object_types') && has_key(target_db.object_types, 'synonyms')
+    return get(target_db.object_types.synonyms, 'list', [])
+  else
+    return []
+  endif
+endfunction
+
+" Get synonym target (what the synonym points to)
+" @param db_key_name - Database identifier
+" @param synonym_name - Synonym name to resolve
+" @return Dictionary with {database, schema, table} or empty if not found
+function! s:resolve_synonym(db_key_name, synonym_name) abort
+  let synonyms = s:get_synonyms_from_dbui(a:db_key_name)
+  for syn in synonyms
+    if type(syn) == type({})
+      let syn_name = get(syn, 'name', '')
+      if syn_name ==? a:synonym_name
+        let base_object = get(syn, 'base_object', '')
+        if !empty(base_object)
+          " Parse base_object: could be "DB.schema.table" or "schema.table" or "table"
+          let parts = split(base_object, '\.')
+          let result = {'database': '', 'schema': '', 'table': ''}
+
+          if len(parts) == 3
+            " DB.schema.table
+            let result.database = trim(parts[0], '[]')
+            let result.schema = trim(parts[1], '[]')
+            let result.table = trim(parts[2], '[]')
+          elseif len(parts) == 2
+            " schema.table
+            let result.schema = trim(parts[0], '[]')
+            let result.table = trim(parts[1], '[]')
+          elseif len(parts) == 1
+            " just table (use default schema)
+            let result.table = trim(parts[0], '[]')
+          endif
+
+          return result
+        endif
+      endif
+    endif
+  endfor
+  return {}
+endfunction
+
+" Check if identifier is a synonym
+" @param db_key_name - Database identifier
+" @param identifier - Name to check
+" @return 1 if synonym exists, 0 otherwise
+function! s:is_synonym(db_key_name, identifier) abort
+  let synonyms = s:get_synonyms_from_dbui(a:db_key_name)
+  for syn in synonyms
+    if type(syn) == type({})
+      let syn_name = get(syn, 'name', '')
+      if syn_name ==? a:identifier
+        return 1
+      endif
+    elseif syn ==? a:identifier
+      return 1
+    endif
+  endfor
+  return 0
+endfunction
+
 " ==============================================================================
 " Granular Lazy Loading (Unified with DBUI Tree)
 " ==============================================================================
@@ -1460,8 +1544,9 @@ function! s:resolve_hierarchical_context(db_key_name, parts, has_trailing_conten
   if num_parts == 2
     " word1.word2 - Check hierarchically:
     " 1. Is word1 a database? → If yes and trailing content, suggest schemas. If no content after dot, show schemas
-    " 2. Is word1 a schema? → If yes and trailing content, suggest tables. If no content, show columns for word2
-    " 3. Otherwise → assume schema.table for column completion
+    " 2. Is word1 a synonym? → If yes, resolve the synonym and show columns from target
+    " 3. Is word1 a schema? → If yes and trailing content, suggest tables. If no content, show columns for word2
+    " 4. Otherwise → assume schema.table for column completion
 
     if s:is_database(a:db_key_name, a:parts[0])
       " word1 is a database
@@ -1475,6 +1560,21 @@ function! s:resolve_hierarchical_context(db_key_name, parts, has_trailing_conten
         let context.type = 'schema'
         let context.database = a:parts[0]
         call s:debug('Hierarchical: ' . a:parts[0] . ' is database, showing schemas')
+      endif
+    elseif s:is_synonym(a:db_key_name, a:parts[0])
+      " word1 is a synonym - resolve it
+      let synonym_target = s:resolve_synonym(a:db_key_name, a:parts[0])
+      if !empty(synonym_target) && !empty(synonym_target.table)
+        " Synonym resolved successfully - show columns from target table
+        let context.type = 'column'
+        let context.database = synonym_target.database
+        let context.schema = synonym_target.schema
+        let context.table = synonym_target.table
+        call s:debug('Hierarchical: ' . a:parts[0] . ' is synonym pointing to ' . synonym_target.table . ', showing columns')
+      else
+        " Couldn't resolve synonym
+        let context.type = 'unknown'
+        call s:debug('Hierarchical: ' . a:parts[0] . ' is synonym but could not resolve target')
       endif
     elseif s:is_schema(a:db_key_name, a:parts[0])
       " word1 is a schema
@@ -1524,22 +1624,26 @@ function! s:resolve_hierarchical_context(db_key_name, parts, has_trailing_conten
 
     if s:is_database(a:db_key_name, a:parts[0])
       " word1 is a database
-      " Trigger granular loading for tables if not already loaded
+      " Trigger granular loading for all object types if not already loaded
       call db_ui#completion#ensure_external_db_objects(a:db_key_name, a:parts[0], 'tables')
+      call db_ui#completion#ensure_external_db_objects(a:db_key_name, a:parts[0], 'views')
+      call db_ui#completion#ensure_external_db_objects(a:db_key_name, a:parts[0], 'procedures')
+      call db_ui#completion#ensure_external_db_objects(a:db_key_name, a:parts[0], 'functions')
+      call db_ui#completion#ensure_external_db_objects(a:db_key_name, a:parts[0], 'synonyms')
 
       if a:has_trailing_content
-        " database.schema.tab → suggest tables
+        " database.schema.tab → suggest tables/views/procedures/functions/synonyms
         let context.type = 'table'
         let context.database = a:parts[0]
         let context.schema = a:parts[1]
-        call s:debug('Hierarchical: db.schema.partial_table')
+        call s:debug('Hierarchical: db.schema.partial_object')
       else
-        " database.schema.table. → show columns
+        " database.schema.table. → show columns (or check if it's a synonym first)
         let context.type = 'column'
         let context.database = a:parts[0]
         let context.schema = a:parts[1]
         let context.table = a:parts[2]
-        call s:debug('Hierarchical: db.schema.table., showing columns')
+        call s:debug('Hierarchical: db.schema.object., showing columns')
       endif
     elseif s:is_schema(a:db_key_name, a:parts[0]) && s:is_table(a:db_key_name, a:parts[1], a:parts[0])
       " word1 is schema, word2 is table

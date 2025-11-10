@@ -37,7 +37,7 @@ let g:db_ui_drawer_sections = get(g:, 'db_ui_drawer_sections', ['new_query', 'bu
 
 " SSMS-style configuration options
 let g:db_ui_use_ssms_style = get(g:, 'db_ui_use_ssms_style', 0)
-let g:db_ui_ssms_object_types = get(g:, 'db_ui_ssms_object_types', ['tables', 'views', 'procedures', 'functions'])
+let g:db_ui_ssms_object_types = get(g:, 'db_ui_ssms_object_types', ['tables', 'views', 'procedures', 'functions', 'synonyms'])
 let g:db_ui_show_schema_prefix = get(g:, 'db_ui_show_schema_prefix', 1)
 let g:db_ui_ssms_show_dependencies = get(g:, 'db_ui_ssms_show_dependencies', 1)
 let g:db_ui_hide_system_databases = get(g:, 'db_ui_hide_system_databases', 1)

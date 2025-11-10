@@ -243,6 +243,11 @@ let s:sqlserver_functions_query = "
       \ WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT')
       \ ORDER BY schema_name, function_name"
 
+let s:sqlserver_synonyms_query = "
+      \ SELECT SCHEMA_NAME(schema_id) as schema_name, name as synonym_name, base_object_name
+      \ FROM sys.synonyms
+      \ ORDER BY schema_name, name"
+
 let s:sqlserver_columns_query = "
       \ SELECT c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.IS_NULLABLE, c.COLUMN_DEFAULT
       \ FROM INFORMATION_SCHEMA.COLUMNS c
@@ -310,6 +315,7 @@ let s:sqlserver = {
       \   'views_query': trim(s:sqlserver_views_query),
       \   'procedures_query': trim(s:sqlserver_procedures_query),
       \   'functions_query': trim(s:sqlserver_functions_query),
+      \   'synonyms_query': trim(s:sqlserver_synonyms_query),
       \   'columns_query': trim(s:sqlserver_columns_query),
       \   'indexes_query': trim(s:sqlserver_indexes_query),
       \   'primary_keys_query': trim(s:sqlserver_primary_keys_query),
@@ -777,6 +783,39 @@ function! db_ui#schemas#query_functions(db, scheme) abort
     return items
   else
     " Single column result - just function names
+    return raw_results
+  endif
+endfunction
+
+function! db_ui#schemas#query_synonyms(db, scheme) abort
+  let query = get(a:scheme, 'synonyms_query', '')
+  if empty(query)
+    return []
+  endif
+
+  " Get raw results
+  let raw_results = db_ui#schemas#query(a:db, a:scheme, query)
+
+  " Parse as 3 columns: schema_name, synonym_name, base_object_name
+  if a:scheme.synonyms_query =~? 'schema_name'
+    let parsed = a:scheme.parse_results(raw_results, 3)
+    let items = []
+    for row in parsed
+      if len(row) >= 3
+        let schema_name = row[0]
+        let synonym_name = row[1]
+        let base_object_name = row[2]
+        call add(items, {
+              \ 'name': synonym_name,
+              \ 'schema': schema_name,
+              \ 'type': 'synonym',
+              \ 'base_object': base_object_name
+              \ })
+      endif
+    endfor
+    return items
+  else
+    " Single column result - just synonym names
     return raw_results
   endif
 endfunction

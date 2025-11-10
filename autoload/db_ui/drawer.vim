@@ -553,6 +553,8 @@ function! s:drawer.render_object_types(server, database, level) abort
       call self.render_object_type_group(a:server, a:database, 'PROCEDURES', 'procedures', a:database.object_types.procedures, a:level)
     elseif object_type ==# 'functions'
       call self.render_object_type_group(a:server, a:database, 'FUNCTIONS', 'functions', a:database.object_types.functions, a:level)
+    elseif object_type ==# 'synonyms'
+      call self.render_object_type_group(a:server, a:database, 'SYNONYMS', 'synonyms', a:database.object_types.synonyms, a:level)
     endif
   endfor
 endfunction

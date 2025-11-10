@@ -393,6 +393,7 @@ function! s:dbui.generate_new_db_entry(db) abort
           \ 'views': {'expanded': 0, 'items': {}, 'list': []},
           \ 'procedures': {'expanded': 0, 'items': {}, 'list': []},
           \ 'functions': {'expanded': 0, 'items': {}, 'list': []},
+          \ 'synonyms': {'expanded': 0, 'items': {}, 'list': []},
           \ }
   endif
 
@@ -656,6 +657,7 @@ function! s:dbui.create_database_structure(server, db_name) abort
         \   'views': {'expanded': 0, 'items': {}, 'list': []},
         \   'procedures': {'expanded': 0, 'items': {}, 'list': []},
         \   'functions': {'expanded': 0, 'items': {}, 'list': []},
+        \   'synonyms': {'expanded': 0, 'items': {}, 'list': []},
         \ },
         \ 'schemas': {'expanded': 0, 'items': {}, 'list': []},
         \ 'tables': {'expanded': 0, 'items': {}, 'list': []},
