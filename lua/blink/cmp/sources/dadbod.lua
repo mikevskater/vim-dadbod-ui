@@ -100,24 +100,9 @@ function source:get_completions(ctx, callback)
   -- Get cursor context using Phase 2 parser
   local context = vim.fn['db_ui#completion#get_cursor_context'](bufnr, line, col)
 
-  -- Calculate base text for filtering
-  local word_start = col + 1
-  local triggers = self:get_trigger_characters()
-  while word_start > 1 do
-    local char = line:sub(word_start - 1, word_start - 1)
-    if vim.tbl_contains(triggers, char) or char:match('%s') then
-      break
-    end
-    word_start = word_start - 1
-  end
-
-  local base = line:sub(word_start, col)
-  if base ~= '' and base:match('[^0-9A-Za-z_@]+') then
-    base = ''
-  end
-
   -- Get completions based on context type
-  local items = self:get_items_for_context(db_key_name, context, base)
+  -- Note: We don't pre-filter - blink.cmp handles filtering via filterText
+  local items = self:get_items_for_context(db_key_name, context)
 
   -- Transform to blink.cmp format
   local completion_items = {}
@@ -138,32 +123,31 @@ end
 ---Get completion items based on context type
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_items_for_context(db_key_name, context, base)
+function source:get_items_for_context(db_key_name, context)
   local context_type = context.type or 'all_objects'
 
   if context_type == 'column' then
-    return self:get_column_items(db_key_name, context, base)
+    return self:get_column_items(db_key_name, context)
   elseif context_type == 'table' then
-    return self:get_table_items(db_key_name, context, base)
+    return self:get_table_items(db_key_name, context)
   elseif context_type == 'schema' then
-    return self:get_schema_items(db_key_name, context, base)
+    return self:get_schema_items(db_key_name, context)
   elseif context_type == 'database' then
-    return self:get_database_items(db_key_name, context, base)
+    return self:get_database_items(db_key_name, context)
   elseif context_type == 'procedure' then
-    return self:get_procedure_items(db_key_name, context, base)
+    return self:get_procedure_items(db_key_name, context)
   elseif context_type == 'function' then
-    return self:get_function_items(db_key_name, context, base)
+    return self:get_function_items(db_key_name, context)
   elseif context_type == 'parameter' then
-    return self:get_parameter_items(db_key_name, context, base)
+    return self:get_parameter_items(db_key_name, context)
   elseif context_type == 'column_or_function' then
     local items = {}
-    vim.list_extend(items, self:get_column_items(db_key_name, context, base))
-    vim.list_extend(items, self:get_function_items(db_key_name, context, base))
+    vim.list_extend(items, self:get_column_items(db_key_name, context))
+    vim.list_extend(items, self:get_function_items(db_key_name, context))
     return items
   elseif context_type == 'all_objects' then
-    return self:get_all_object_items(db_key_name, context, base)
+    return self:get_all_object_items(db_key_name, context)
   else
     return {}
   end
@@ -172,9 +156,8 @@ end
 ---Get column completion items
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_column_items(db_key_name, context, base)
+function source:get_column_items(db_key_name, context)
   local table_name = ''
   local external_db = nil
 
@@ -197,8 +180,13 @@ function source:get_column_items(db_key_name, context, base)
   -- Get columns from cache
   local raw_columns
   if external_db then
-    -- External database columns (future enhancement)
-    raw_columns = {}
+    -- External database columns (Phase 5 enhancement)
+    raw_columns = vim.fn['db_ui#completion#get_external_completions'](
+      db_key_name,
+      external_db,
+      'columns',
+      table_name
+    )
   else
     raw_columns = vim.fn['db_ui#completion#get_completions'](db_key_name, 'columns', table_name)
   end
@@ -218,22 +206,14 @@ function source:get_column_items(db_key_name, context, base)
     table.insert(items, item)
   end
 
-  -- Filter by base
-  if base ~= '' then
-    items = vim.tbl_filter(function(item)
-      return item.word:lower():find('^' .. base:lower(), 1, true) ~= nil
-    end, items)
-  end
-
   return items
 end
 
 ---Get table completion items
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_table_items(db_key_name, context, base)
+function source:get_table_items(db_key_name, context)
   local raw_objects
 
   if context.database and context.database ~= '' then
@@ -241,14 +221,20 @@ function source:get_table_items(db_key_name, context, base)
     raw_objects = vim.fn['db_ui#completion#get_external_completions'](
       db_key_name,
       context.database,
-      'all_objects',
-      base
+      'all_objects'
     )
   else
     -- Current database tables and views
     local tables = vim.fn['db_ui#completion#get_completions'](db_key_name, 'tables')
     local views = vim.fn['db_ui#completion#get_completions'](db_key_name, 'views')
     raw_objects = vim.list_extend(tables, views)
+  end
+
+  -- Filter by schema if specified in context
+  if context.schema and context.schema ~= '' then
+    raw_objects = vim.tbl_filter(function(obj)
+      return obj.schema and obj.schema:lower() == context.schema:lower()
+    end, raw_objects)
   end
 
   -- Format items
@@ -265,22 +251,14 @@ function source:get_table_items(db_key_name, context, base)
     table.insert(items, item)
   end
 
-  -- Filter by base
-  if base ~= '' then
-    items = vim.tbl_filter(function(item)
-      return item.word:lower():find('^' .. base:lower(), 1, true) ~= nil
-    end, items)
-  end
-
   return items
 end
 
 ---Get schema completion items
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_schema_items(db_key_name, context, base)
+function source:get_schema_items(db_key_name, context)
   local raw_schemas = vim.fn['db_ui#completion#get_completions'](db_key_name, 'schemas')
 
   local items = {}
@@ -294,22 +272,14 @@ function source:get_schema_items(db_key_name, context, base)
     table.insert(items, item)
   end
 
-  -- Filter by base
-  if base ~= '' then
-    items = vim.tbl_filter(function(item)
-      return item.word:lower():find('^' .. base:lower(), 1, true) ~= nil
-    end, items)
-  end
-
   return items
 end
 
 ---Get database completion items
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_database_items(db_key_name, context, base)
+function source:get_database_items(db_key_name, context)
   local raw_databases = vim.fn['db_ui#completion#get_completions'](db_key_name, 'databases')
 
   local items = {}
@@ -323,22 +293,14 @@ function source:get_database_items(db_key_name, context, base)
     table.insert(items, item)
   end
 
-  -- Filter by base
-  if base ~= '' then
-    items = vim.tbl_filter(function(item)
-      return item.word:lower():find('^' .. base:lower(), 1, true) ~= nil
-    end, items)
-  end
-
   return items
 end
 
 ---Get procedure completion items
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_procedure_items(db_key_name, context, base)
+function source:get_procedure_items(db_key_name, context)
   local raw_procedures = vim.fn['db_ui#completion#get_completions'](db_key_name, 'procedures')
 
   local items = {}
@@ -353,22 +315,14 @@ function source:get_procedure_items(db_key_name, context, base)
     table.insert(items, item)
   end
 
-  -- Filter by base
-  if base ~= '' then
-    items = vim.tbl_filter(function(item)
-      return item.word:lower():find('^' .. base:lower(), 1, true) ~= nil
-    end, items)
-  end
-
   return items
 end
 
 ---Get function completion items
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_function_items(db_key_name, context, base)
+function source:get_function_items(db_key_name, context)
   local raw_functions = vim.fn['db_ui#completion#get_completions'](db_key_name, 'functions')
 
   local items = {}
@@ -383,22 +337,14 @@ function source:get_function_items(db_key_name, context, base)
     table.insert(items, item)
   end
 
-  -- Filter by base
-  if base ~= '' then
-    items = vim.tbl_filter(function(item)
-      return item.word:lower():find('^' .. base:lower(), 1, true) ~= nil
-    end, items)
-  end
-
   return items
 end
 
 ---Get parameter completion items
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_parameter_items(db_key_name, context, base)
+function source:get_parameter_items(db_key_name, context)
   local items = {}
 
   -- Check for bind parameters
@@ -414,26 +360,18 @@ function source:get_parameter_items(db_key_name, context, base)
     table.insert(items, item)
   end
 
-  -- Filter by base
-  if base ~= '' then
-    items = vim.tbl_filter(function(item)
-      return item.word:lower():find('^' .. base:lower(), 1, true) ~= nil
-    end, items)
-  end
-
   return items
 end
 
 ---Get all object completion items
 ---@param db_key_name string
 ---@param context table
----@param base string
 ---@return table[]
-function source:get_all_object_items(db_key_name, context, base)
+function source:get_all_object_items(db_key_name, context)
   local items = {}
-  vim.list_extend(items, self:get_table_items(db_key_name, context, base))
-  vim.list_extend(items, self:get_procedure_items(db_key_name, context, base))
-  vim.list_extend(items, self:get_function_items(db_key_name, context, base))
+  vim.list_extend(items, self:get_table_items(db_key_name, context))
+  vim.list_extend(items, self:get_procedure_items(db_key_name, context))
+  vim.list_extend(items, self:get_function_items(db_key_name, context))
   return items
 end
 

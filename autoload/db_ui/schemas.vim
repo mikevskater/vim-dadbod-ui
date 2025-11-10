@@ -635,6 +635,41 @@ function! db_ui#schemas#query_databases(db, scheme) abort
   return db_ui#schemas#query(a:db, a:scheme, query)
 endfunction
 
+function! db_ui#schemas#query_tables(db, scheme) abort
+  let query = get(a:scheme, 'schemes_tables_query', '')
+  if empty(query)
+    return []
+  endif
+
+  " Get raw results
+  let raw_results = db_ui#schemas#query(a:db, a:scheme, query)
+
+  " Parse results (2 columns: schema_name, table_name)
+  let parsed = a:scheme.parse_results(raw_results, 2)
+
+  " Get database name if available
+  let db_name = get(a:db, 'name', get(a:db, 'db_name', ''))
+
+  " Format as completion items with schema, database, and type
+  let items = []
+  for [schema_name, table_name] in parsed
+    " Skip SQL Server system tables (spt_* in master, sys, INFORMATION_SCHEMA)
+    if table_name =~? '^spt_' || schema_name =~? '^\(sys\|INFORMATION_SCHEMA\)$'
+      continue
+    endif
+
+    call add(items, {
+          \ 'name': table_name,
+          \ 'schema': schema_name,
+          \ 'database': db_name,
+          \ 'type': 'table',
+          \ 'full_name': schema_name . '.' . table_name
+          \ })
+  endfor
+
+  return items
+endfunction
+
 function! db_ui#schemas#query_views(db, scheme) abort
   let query = get(a:scheme, 'views_query', '')
   if empty(query)
@@ -647,7 +682,27 @@ function! db_ui#schemas#query_views(db, scheme) abort
     let query = query . ' WHERE table_schema = ''' . a:db.name . ''' AND table_schema NOT IN (''information_schema'', ''mysql'', ''performance_schema'', ''sys'')'
   endif
 
-  return db_ui#schemas#query(a:db, a:scheme, query)
+  " Get raw results
+  let raw_results = db_ui#schemas#query(a:db, a:scheme, query)
+
+  " Check if views_query returns schema and view name (2 columns) or just view name (1 column)
+  " For SQL Server, views_query should return schema_name, table_name from INFORMATION_SCHEMA.VIEWS
+  if has_key(a:scheme, 'views_query') && a:scheme.views_query =~? 'table_schema'
+    " Parse as 2 columns: schema_name, view_name
+    let parsed = a:scheme.parse_results(raw_results, 2)
+    let items = []
+    for [schema_name, view_name] in parsed
+      call add(items, {
+            \ 'name': view_name,
+            \ 'schema': schema_name,
+            \ 'type': 'view'
+            \ })
+    endfor
+    return items
+  else
+    " Single column result - just view names
+    return raw_results
+  endif
 endfunction
 
 function! db_ui#schemas#query_procedures(db, scheme) abort
@@ -666,7 +721,26 @@ function! db_ui#schemas#query_procedures(db, scheme) abort
     endif
   endif
 
-  return db_ui#schemas#query(a:db, a:scheme, query)
+  " Get raw results
+  let raw_results = db_ui#schemas#query(a:db, a:scheme, query)
+
+  " Check if procedures_query returns schema and procedure name (2 columns)
+  if a:scheme.procedures_query =~? 'schema_name'
+    " Parse as 2 columns: schema_name, procedure_name
+    let parsed = a:scheme.parse_results(raw_results, 2)
+    let items = []
+    for [schema_name, proc_name] in parsed
+      call add(items, {
+            \ 'name': proc_name,
+            \ 'schema': schema_name,
+            \ 'type': 'procedure'
+            \ })
+    endfor
+    return items
+  else
+    " Single column result - just procedure names
+    return raw_results
+  endif
 endfunction
 
 function! db_ui#schemas#query_functions(db, scheme) abort
@@ -685,7 +759,26 @@ function! db_ui#schemas#query_functions(db, scheme) abort
     endif
   endif
 
-  return db_ui#schemas#query(a:db, a:scheme, query)
+  " Get raw results
+  let raw_results = db_ui#schemas#query(a:db, a:scheme, query)
+
+  " Check if functions_query returns schema and function name (2 columns)
+  if a:scheme.functions_query =~? 'schema_name'
+    " Parse as 2 columns: schema_name, function_name
+    let parsed = a:scheme.parse_results(raw_results, 2)
+    let items = []
+    for [schema_name, func_name] in parsed
+      call add(items, {
+            \ 'name': func_name,
+            \ 'schema': schema_name,
+            \ 'type': 'function'
+            \ })
+    endfor
+    return items
+  else
+    " Single column result - just function names
+    return raw_results
+  endif
 endfunction
 
 function! db_ui#schemas#query_columns(db, scheme, schema, table) abort
