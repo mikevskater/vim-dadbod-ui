@@ -431,6 +431,7 @@ function! db_ui#completion#init_cache(db_key_name) abort
         \ 'views': [],
         \ 'procedures': [],
         \ 'functions': [],
+        \ 'synonyms': [],
         \ 'columns_by_table': {},
         \ 'external_databases': {},
         \ 'last_updated': localtime(),
@@ -520,6 +521,12 @@ function! s:fetch_metadata_async(db_key_name) abort
     return
   endif
 
+  echom '[DBUI-VIM] db_info keys: ' . string(keys(db_info))
+  echom '[DBUI-VIM] db_info.name: ' . get(db_info, 'name', 'MISSING')
+  echom '[DBUI-VIM] db_info.db_name: ' . get(db_info, 'db_name', 'MISSING')
+  echom '[DBUI-VIM] db_info.conn type: ' . string(type(db_info.conn))
+  echom '[DBUI-VIM] db_info.connected: ' . string(get(db_info, 'connected', 'N/A'))
+
   call s:debug('Fetching metadata for: ' . a:db_key_name)
 
   " Mark as loading
@@ -538,7 +545,12 @@ function! s:fetch_metadata_async(db_key_name) abort
     " Get scheme info for this database type
     let scheme_info = {}
     if exists('*db_ui#schemas#get') && has_key(db_info, 'scheme')
+      echom '[DBUI-VIM] Getting scheme info for: ' . db_info.scheme
       let scheme_info = db_ui#schemas#get(db_info.scheme)
+      echom '[DBUI-VIM] scheme_info keys: ' . string(keys(scheme_info))
+      echom '[DBUI-VIM] has schemes_tables_query: ' . (has_key(scheme_info, 'schemes_tables_query') ? 'YES' : 'NO')
+    else
+      echom '[DBUI-VIM] Cannot get scheme_info (missing function or scheme)'
     endif
 
     " Get database list (for server-level connections)
@@ -557,7 +569,12 @@ function! s:fetch_metadata_async(db_key_name) abort
 
     " Get tables using query function (not from DBUI cache)
     if exists('*db_ui#schemas#query_tables') && !empty(scheme_info)
+      echom '[DBUI-VIM] Calling db_ui#schemas#query_tables...'
       let tables = db_ui#schemas#query_tables(db_info, scheme_info)
+      echom '[DBUI-VIM] query_tables returned ' . len(tables) . ' tables'
+      if len(tables) > 0
+        echom '[DBUI-VIM] First table: ' . string(tables[0])
+      endif
       if has_key(s:completion_cache, a:db_key_name)
         let s:completion_cache[a:db_key_name].tables = tables
       endif
@@ -596,6 +613,16 @@ function! s:fetch_metadata_async(db_key_name) abort
         let s:completion_cache[a:db_key_name].functions = functions
       endif
       call s:debug('Fetched and cached ' . len(functions) . ' functions')
+    endif
+
+    " Get synonyms (if supported)
+    if exists('*db_ui#schemas#query_synonyms') && !empty(scheme_info)
+      call s:debug('Fetching synonyms from ' . a:db_key_name . '...')
+      let synonyms = db_ui#schemas#query_synonyms(db_info, scheme_info)
+      if has_key(s:completion_cache, a:db_key_name)
+        let s:completion_cache[a:db_key_name].synonyms = synonyms
+      endif
+      call s:debug('Fetched and cached ' . len(synonyms) . ' synonyms')
     endif
 
     " Update last_updated timestamp and mark as loaded
@@ -782,8 +809,32 @@ function! s:get_columns(db_key_name, table_name) abort
         endif
       endif
 
+      " If no schema specified, use default schema from database
+      if empty(schema)
+        if has_key(db_info, 'default_scheme')
+          let schema = db_info.default_scheme
+          echom '[DBUI-VIM] Using default_scheme: ' . schema
+        else
+          " SQL Server default is 'dbo'
+          if db_info.scheme =~? '^sqlserver\|^sqlsrv\|^mssql'
+            let schema = 'dbo'
+            echom '[DBUI-VIM] No default_scheme, using SQL Server default: dbo'
+          endif
+        endif
+      endif
+
+      echom '[DBUI-VIM] get_columns: table=' . table . ', schema=' . schema
       let raw_columns = db_ui#schemas#query_columns(db_info, scheme_info, schema, table)
+      echom '[DBUI-VIM] get_columns: raw_columns count=' . len(raw_columns)
+      echom '[DBUI-VIM] get_columns: raw_columns type=' . type(raw_columns)
+      if len(raw_columns) > 0
+        echom '[DBUI-VIM] get_columns: first column=' . string(raw_columns[0])
+      endif
       let formatted_columns = s:format_columns(raw_columns)
+      echom '[DBUI-VIM] get_columns: formatted_columns count=' . len(formatted_columns)
+      if len(formatted_columns) > 0
+        echom '[DBUI-VIM] get_columns: first formatted=' . string(formatted_columns[0])
+      endif
 
       " Cache the columns
       let cache.columns_by_table[a:table_name] = formatted_columns
@@ -1088,7 +1139,7 @@ function! db_ui#completion#get_cursor_context(bufnr, line_text, col) abort
   let context.external_databases = db_ui#completion#parse_database_references(query_text)
 
   " Detect completion type based on text before cursor
-  let context = s:detect_completion_type(before_cursor, context)
+  let context = s:detect_completion_type(a:bufnr, before_cursor, context)
 
   return context
 endfunction
@@ -1113,11 +1164,15 @@ endfunction
 " @param before_cursor - Text before cursor
 " @param context - Context dictionary to populate
 " @return Updated context dictionary
-function! s:detect_completion_type(before_cursor, context) abort
+function! s:detect_completion_type(bufnr, before_cursor, context) abort
   let context = a:context
 
   " Clean up whitespace for pattern matching
   let text = substitute(a:before_cursor, '\s\+', ' ', 'g')
+
+  echom '[DBUI-VIM] detect_completion_type called'
+  echom '[DBUI-VIM] before_cursor: "' . a:before_cursor . '"'
+  echom '[DBUI-VIM] cleaned text: "' . text . '"'
 
   " ====================
   " Schema/Table Completions (Use hierarchical resolution)
@@ -1196,29 +1251,49 @@ function! s:detect_completion_type(before_cursor, context) abort
   endif
 
   " Pattern: word.| - single word followed by dot
+  echom '[DBUI-VIM] Testing pattern: word + dot'
+  echom '[DBUI-VIM] Pattern 1 match (\w\+\.\s*$): ' . (text =~# '\w\+\.\s*$')
+  echom '[DBUI-VIM] Pattern 2 NOT match (\w\+\.\w\+\.): ' . (text !~# '\w\+\.\w\+\.')
   if text =~# '\w\+\.\s*$' && text !~# '\w\+\.\w\+\.'
     let word = matchstr(text, '\w\+\ze\.\s*$')
+    echom '[DBUI-VIM] Single word + dot pattern MATCHED: ' . word
+    call s:debug('Single word + dot pattern detected: ' . word)
     if !s:is_sql_keyword(word)
       " Get db_key_name from buffer
-      let db_key_name = get(b:, 'dbui_db_key_name', '')
+      let db_key_name = getbufvar(a:bufnr, 'dbui_db_key_name', '')
+      echom '[DBUI-VIM] db_key_name from buffer ' . a:bufnr . ': ' . (empty(db_key_name) ? 'EMPTY' : db_key_name)
       if !empty(db_key_name)
         " Check hierarchically what this word refers to
+        echom '[DBUI-VIM] Starting hierarchical checks for: ' . word
+        call s:debug('Checking hierarchically: is_database?')
         if s:is_database(db_key_name, word)
           let context.type = 'schema'
           let context.database = word
           call s:debug('Hierarchical: ' . word . ' is database, showing schemas')
           return context
-        elseif s:is_schema(db_key_name, word)
+        endif
+        call s:debug('Checking hierarchically: is_schema?')
+        if s:is_schema(db_key_name, word)
           let context.type = 'table'
           let context.schema = word
           call s:debug('Hierarchical: ' . word . ' is schema, showing tables')
           return context
-        elseif s:is_table(db_key_name, word)
+        endif
+        call s:debug('Checking hierarchically: is_table?')
+        echom '[DBUI-VIM] Checking if ' . word . ' is a table...'
+        if s:is_table(db_key_name, word)
+          " SSMS-style: Find which schema this table belongs to
+          echom '[DBUI-VIM] ' . word . ' IS a table! Finding schema...'
+          let table_schema = s:find_table_schema(db_key_name, word)
+          echom '[DBUI-VIM] Schema found: ' . table_schema
           let context.type = 'column'
           let context.table = word
-          call s:debug('Hierarchical: ' . word . ' is table, showing columns')
+          let context.schema = table_schema
+          call s:debug('Hierarchical: ' . word . ' is table in schema ' . table_schema . ', showing columns')
           return context
         endif
+        echom '[DBUI-VIM] Hierarchical checks all failed for: ' . word
+        call s:debug('Hierarchical checks all failed for: ' . word)
       endif
 
       " Fallback: check if alias
@@ -1237,6 +1312,8 @@ function! s:detect_completion_type(before_cursor, context) abort
       let context.table = word
       call s:debug('Fallback: assuming table for column completion')
       return context
+    else
+      call s:debug('Word is SQL keyword: ' . word)
     endif
   endif
 
@@ -1436,11 +1513,83 @@ endfunction
 " @param identifier - Name to check
 " @param schema - Optional schema to filter by
 " @return 1 if table/view exists, 0 otherwise
+" Find which schema a table belongs to (SSMS-style cross-schema search)
+" @param db_key_name - Database identifier
+" @param table_name - Table name to find
+" @return Schema name, or 'dbo' as fallback
+function! s:find_table_schema(db_key_name, table_name) abort
+  " Search all tables to find which schema this table belongs to
+  " First try the DBUI tree (if already loaded), then fall back to completion cache
+
+  let db = s:get_dbui_database(a:db_key_name)
+  if !empty(db)
+    " Check tables in object_types (SSMS mode)
+    if has_key(db, 'object_types') && has_key(db.object_types, 'tables')
+      let table_items = get(db.object_types.tables, 'items', {})
+      for [full_name, table_obj] in items(table_items)
+        let tbl_name = get(table_obj, 'name', '')
+        let tbl_schema = get(table_obj, 'schema', '')
+        if tbl_name ==? a:table_name && !empty(tbl_schema)
+          call s:debug('find_table_schema: Found ' . a:table_name . ' in schema ' . tbl_schema . ' (DBUI tree)')
+          return tbl_schema
+        endif
+      endfor
+    endif
+
+    " Check views in object_types (SSMS mode)
+    if has_key(db, 'object_types') && has_key(db.object_types, 'views')
+      let view_items = get(db.object_types.views, 'items', {})
+      for [full_name, view_obj] in items(view_items)
+        let view_name = get(view_obj, 'name', '')
+        let view_schema = get(view_obj, 'schema', '')
+        if view_name ==? a:table_name && !empty(view_schema)
+          call s:debug('find_table_schema: Found view ' . a:table_name . ' in schema ' . view_schema . ' (DBUI tree)')
+          return view_schema
+        endif
+      endfor
+    endif
+  endif
+
+  " Fallback: Check completion cache (always has data if IntelliSense is active)
+  if has_key(s:completion_cache, a:db_key_name)
+    let cache = s:completion_cache[a:db_key_name]
+
+    " Search tables in cache
+    for table in get(cache, 'tables', [])
+      if type(table) == type({})
+        let tbl_name = get(table, 'name', '')
+        let tbl_schema = get(table, 'schema', '')
+        if tbl_name ==? a:table_name && !empty(tbl_schema)
+          call s:debug('find_table_schema: Found ' . a:table_name . ' in schema ' . tbl_schema . ' (completion cache)')
+          return tbl_schema
+        endif
+      endif
+    endfor
+
+    " Search views in cache
+    for view in get(cache, 'views', [])
+      if type(view) == type({})
+        let view_name = get(view, 'name', '')
+        let view_schema = get(view, 'schema', '')
+        if view_name ==? a:table_name && !empty(view_schema)
+          call s:debug('find_table_schema: Found view ' . a:table_name . ' in schema ' . view_schema . ' (completion cache)')
+          return view_schema
+        endif
+      endif
+    endfor
+  endif
+
+  " Default to dbo for SQL Server if not found
+  call s:debug('find_table_schema: Table ' . a:table_name . ' not found, defaulting to dbo')
+  return 'dbo'
+endfunction
+
 function! s:is_table(db_key_name, identifier, ...) abort
   let schema_filter = get(a:, 1, '')
 
   " Try unified cache first (DBUI tree)
   let tables = s:get_tables_from_dbui(a:db_key_name)
+  echom '[DBUI-VIM] is_table: Checking for "' . a:identifier . '" in ' . len(tables) . ' DBUI tables'
   for table in tables
     if type(table) == type({})
       let table_name = get(table, 'name', '')
@@ -1492,20 +1641,24 @@ function! s:is_table(db_key_name, identifier, ...) abort
   " Fallback to completion cache if DBUI not available
   if has_key(s:completion_cache, a:db_key_name)
     let cache = s:completion_cache[a:db_key_name]
+    echom '[DBUI-VIM] is_table: Checking completion cache with ' . len(cache.tables) . ' tables'
 
     for table in cache.tables
       if type(table) == type({})
         let table_name = get(table, 'name', '')
         let table_schema = get(table, 'schema', '')
         if table_name ==? a:identifier
+          echom '[DBUI-VIM] is_table: FOUND match! ' . table_schema . '.' . table_name
           if empty(schema_filter) || table_schema ==? schema_filter
             return 1
           endif
         endif
       elseif a:identifier ==? table
+        echom '[DBUI-VIM] is_table: FOUND string match! ' . table
         return 1
       endif
     endfor
+    echom '[DBUI-VIM] is_table: NOT found in completion cache'
 
     for view in cache.views
       if type(view) == type({})
@@ -1817,6 +1970,16 @@ function! s:format_columns(columns) abort
         let formatted_col.type = 'column'
       endif
       call add(formatted, formatted_col)
+    elseif type(col) == v:t_string && !empty(col)
+      " Plain string - just column name
+      call add(formatted, {
+            \ 'name': col,
+            \ 'type': 'column',
+            \ 'data_type': '',
+            \ 'nullable': 1,
+            \ 'is_pk': 0,
+            \ 'is_fk': 0
+            \ })
     endif
   endfor
 
@@ -1969,6 +2132,59 @@ function! db_ui#completion#setup_autocmds() abort
   augroup END
 
   call s:debug('IntelliSense autocmds initialized')
+endfunction
+
+" Get completion cache info for debugging
+function! db_ui#completion#get_cache_info(db_key_name) abort
+  if !has_key(s:completion_cache, a:db_key_name)
+    return {}
+  endif
+  return s:completion_cache[a:db_key_name]
+endfunction
+
+" Debug: Show detailed cache info with schema information
+function! db_ui#completion#show_cache_debug(db_key_name) abort
+  if !has_key(s:completion_cache, a:db_key_name)
+    echom '[DBUI] No cache for: ' . a:db_key_name
+    return
+  endif
+
+  let cache = s:completion_cache[a:db_key_name]
+  echom '=== Completion Cache Debug ==='
+  echom 'Database: ' . a:db_key_name
+  echom ''
+
+  " Show tables with schema info
+  echom 'Tables (' . len(get(cache, 'tables', [])) . '):'
+  for table in get(cache, 'tables', [])[:5]  " Show first 5
+    if type(table) == type({})
+      echom '  - ' . get(table, 'schema', 'NO_SCHEMA') . '.' . get(table, 'name', 'NO_NAME')
+    else
+      echom '  - ' . string(table)
+    endif
+  endfor
+  if len(get(cache, 'tables', [])) > 5
+    echom '  ... and ' . (len(cache.tables) - 5) . ' more'
+  endif
+
+  " Show views with schema info
+  echom ''
+  echom 'Views (' . len(get(cache, 'views', [])) . '):'
+  for view in get(cache, 'views', [])[:5]  " Show first 5
+    if type(view) == type({})
+      echom '  - ' . get(view, 'schema', 'NO_SCHEMA') . '.' . get(view, 'name', 'NO_NAME')
+    else
+      echom '  - ' . string(view)
+    endif
+  endfor
+  if len(get(cache, 'views', [])) > 5
+    echom '  ... and ' . (len(cache.views) - 5) . ' more'
+  endif
+
+  echom ''
+  echom 'Schemas: ' . string(get(cache, 'schemas', []))
+  echom ''
+  echom '=== End Cache Debug ==='
 endfunction
 
 " Initialize the IntelliSense system (called from plugin initialization)

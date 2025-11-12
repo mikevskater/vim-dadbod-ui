@@ -92,13 +92,20 @@ function! db_ui#get_conn_info(db_key_name) abort
   endif
   let db = s:dbui_instance.dbs[a:db_key_name]
   call s:dbui_instance.connect(db)
+  " Use db_name (actual database from URL) for 'name' field
+  " This is what query functions expect
+  let actual_db_name = get(db, 'db_name', db.name)
   return {
         \ 'url': db.url,
         \ 'conn': db.conn,
+        \ 'name': actual_db_name,
+        \ 'db_name': actual_db_name,
+        \ 'conn_name': db.name,
         \ 'tables': db.tables.list,
         \ 'schemas': db.schemas.list,
         \ 'scheme': db.scheme,
         \ 'connected': !empty(db.conn),
+        \ 'default_scheme': get(db, 'default_scheme', 'dbo'),
         \ }
 endfunction
 
@@ -797,50 +804,81 @@ function! s:dbui.populate_object_type(database, object_type, scheme_info) abort
     let query_time = reltime()
     call db_ui#notifications#info('Fetching '.a:object_type.' from '.a:database.name.'...')
     let result = call('db_ui#schemas#' . query_func, [a:database, a:scheme_info])
-    let parsed_result = get(a:scheme_info, 'parse_results', {results, min -> results})(result, 2)
 
     let a:database.object_types[a:object_type].list = []
     let a:database.object_types[a:object_type].items = {}
 
-    for row in parsed_result
-      if type(row) ==? type([]) && len(row) >= 2
-        let schema_name = trim(row[0])
-        let object_name = trim(row[1])
+    " Handle synonyms specially - they return structured dictionaries
+    if a:object_type ==# 'synonyms'
+      for syn_dict in result
+        if type(syn_dict) ==? type({})
+          let schema_name = get(syn_dict, 'schema', a:database.default_scheme)
+          let object_name = get(syn_dict, 'name', '')
+          let base_object = get(syn_dict, 'base_object', '')
 
-        " Skip header rows (column names)
-        if schema_name =~? '^\(TABLE_SCHEMA\|table_schema\|schema_name\|routine_schema\)$'
+          if empty(object_name)
+            continue
+          endif
+
+          let full_name = g:db_ui_show_schema_prefix && !empty(schema_name)
+                \ ? '['.schema_name.'].['.object_name.']'
+                \ : object_name
+
+          call add(a:database.object_types[a:object_type].list, full_name)
+          let a:database.object_types[a:object_type].items[full_name] = {
+                \ 'schema': schema_name,
+                \ 'name': object_name,
+                \ 'full_name': full_name,
+                \ 'base_object': base_object,
+                \ 'expanded': 0,
+                \ 'structural_groups': {},
+                \ }
+        endif
+      endfor
+    else
+      " Handle other object types (views, procedures, functions) - parse as 2-column data
+      let parsed_result = get(a:scheme_info, 'parse_results', {results, min -> results})(result, 2)
+
+      for row in parsed_result
+        if type(row) ==? type([]) && len(row) >= 2
+          let schema_name = trim(row[0])
+          let object_name = trim(row[1])
+
+          " Skip header rows (column names)
+          if schema_name =~? '^\(TABLE_SCHEMA\|table_schema\|schema_name\|routine_schema\)$'
+            continue
+          endif
+        else
+          let schema_name = a:database.default_scheme
+          let object_name = trim(row)
+        endif
+
+        if empty(object_name)
           continue
         endif
-      else
-        let schema_name = a:database.default_scheme
-        let object_name = trim(row)
-      endif
 
-      if empty(object_name)
-        continue
-      endif
+        let full_name = g:db_ui_show_schema_prefix && !empty(schema_name)
+              \ ? '['.schema_name.'].['.object_name.']'
+              \ : object_name
 
-      let full_name = g:db_ui_show_schema_prefix && !empty(schema_name)
-            \ ? '['.schema_name.'].['.object_name.']'
-            \ : object_name
-
-      call add(a:database.object_types[a:object_type].list, full_name)
-      let a:database.object_types[a:object_type].items[full_name] = {
-            \ 'schema': schema_name,
-            \ 'name': object_name,
-            \ 'full_name': full_name,
-            \ 'expanded': 0,
-            \ 'structural_groups': {
-            \   'columns': {'expanded': 0, 'data': []},
-            \   'indexes': {'expanded': 0, 'data': []},
-            \   'keys': {'expanded': 0, 'data': []},
-            \   'primary_keys': {'expanded': 0, 'data': []},
-            \   'foreign_keys': {'expanded': 0, 'data': []},
-            \   'constraints': {'expanded': 0, 'data': []},
-            \   'parameters': {'expanded': 0, 'data': []},
-            \ },
-            \ }
-    endfor
+        call add(a:database.object_types[a:object_type].list, full_name)
+        let a:database.object_types[a:object_type].items[full_name] = {
+              \ 'schema': schema_name,
+              \ 'name': object_name,
+              \ 'full_name': full_name,
+              \ 'expanded': 0,
+              \ 'structural_groups': {
+              \   'columns': {'expanded': 0, 'data': []},
+              \   'indexes': {'expanded': 0, 'data': []},
+              \   'keys': {'expanded': 0, 'data': []},
+              \   'primary_keys': {'expanded': 0, 'data': []},
+              \   'foreign_keys': {'expanded': 0, 'data': []},
+              \   'constraints': {'expanded': 0, 'data': []},
+              \   'parameters': {'expanded': 0, 'data': []},
+              \ },
+              \ }
+      endfor
+    endif
 
     " Sort by schema then object name
     call sort(a:database.object_types[a:object_type].list)

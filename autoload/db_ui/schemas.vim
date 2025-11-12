@@ -580,8 +580,20 @@ function! db_ui#schemas#query(db, scheme, query) abort
   " Check if caching is enabled
   let cache_enabled = get(g:, 'db_ui_cache_enabled', 1)
 
+  " Prepare query with SET NOCOUNT ON for SQL Server
+  " Only add for SELECT queries to suppress row count messages
+  " Don't add for system queries (sp_*, sys.*, master.dbo.*)
+  let query = a:query
+  let db_scheme = type(a:db) == v:t_dict ? get(a:db, 'scheme', '') : ''
+  if db_scheme =~? '^sqlserver\|^sqlsrv\|^mssql'
+    " Only add SET NOCOUNT ON for SELECT queries, not for sp_ or sys queries
+    if query =~? '^\s*SELECT' && query !~? 'sp_\|sys\.\|master\.dbo\.'
+      let query = "SET NOCOUNT ON;\n" . query
+    endif
+  endif
+
   if cache_enabled
-    " Generate cache key
+    " Generate cache key (use original query for cache key)
     let cache_key = s:generate_cache_key(a:db, a:query)
 
     " Try to get cached result
@@ -597,7 +609,7 @@ function! db_ui#schemas#query(db, scheme, query) abort
   endif
 
   " Execute query if not cached or cache disabled
-  let result = call('db#systemlist', s:format_query(a:db, a:scheme, a:query))
+  let result = call('db#systemlist', s:format_query(a:db, a:scheme, query))
   let result = map(result, {_, val -> substitute(val, "\r$", "", "")})
 
   " Store in cache if enabled
@@ -647,23 +659,45 @@ function! db_ui#schemas#query_tables(db, scheme) abort
     return []
   endif
 
+  echom '[DBUI-SCHEMAS] query_tables: Running query...'
+  echom '[DBUI-SCHEMAS] Query: ' . query
+
   " Get raw results
   let raw_results = db_ui#schemas#query(a:db, a:scheme, query)
+  echom '[DBUI-SCHEMAS] Raw results count: ' . len(raw_results)
+  if len(raw_results) > 0
+    echom '[DBUI-SCHEMAS] First raw result: ' . string(raw_results[0])
+  endif
 
   " Parse results (2 columns: schema_name, table_name)
   let parsed = a:scheme.parse_results(raw_results, 2)
+  echom '[DBUI-SCHEMAS] Parsed results count: ' . len(parsed)
+  if len(parsed) > 0
+    echom '[DBUI-SCHEMAS] First parsed item type: ' . type(parsed[0])
+    echom '[DBUI-SCHEMAS] First parsed item: ' . string(parsed[0])
+  endif
 
   " Get database name if available
   let db_name = get(a:db, 'name', get(a:db, 'db_name', ''))
+  echom '[DBUI-SCHEMAS] Database name: ' . (empty(db_name) ? 'EMPTY' : db_name)
 
   " Format as completion items with schema, database, and type
   let items = []
-  for [schema_name, table_name] in parsed
+  for row in parsed
+    echom '[DBUI-SCHEMAS] Processing row: ' . string(row) . ' (type=' . type(row) . ')'
+    if type(row) != type([]) || len(row) < 2
+      echom '[DBUI-SCHEMAS] SKIP: Row is not a list or has < 2 elements'
+      continue
+    endif
+    let schema_name = row[0]
+    let table_name = row[1]
     " Skip SQL Server system tables (spt_* in master, sys, INFORMATION_SCHEMA)
     if table_name =~? '^spt_' || schema_name =~? '^\(sys\|INFORMATION_SCHEMA\)$'
+      echom '[DBUI-SCHEMAS] SKIP: System table ' . schema_name . '.' . table_name
       continue
     endif
 
+    echom '[DBUI-SCHEMAS] Adding table: ' . schema_name . '.' . table_name
     call add(items, {
           \ 'name': table_name,
           \ 'schema': schema_name,
@@ -673,6 +707,7 @@ function! db_ui#schemas#query_tables(db, scheme) abort
           \ })
   endfor
 
+  echom '[DBUI-SCHEMAS] Total items after filtering: ' . len(items)
   return items
 endfunction
 
@@ -797,7 +832,8 @@ function! db_ui#schemas#query_synonyms(db, scheme) abort
   let raw_results = db_ui#schemas#query(a:db, a:scheme, query)
 
   " Parse as 3 columns: schema_name, synonym_name, base_object_name
-  if a:scheme.synonyms_query =~? 'schema_name'
+  " Check if the query string (not the scheme dict) contains 'schema_name'
+  if query =~? 'schema_name'
     let parsed = a:scheme.parse_results(raw_results, 3)
     let items = []
     for row in parsed

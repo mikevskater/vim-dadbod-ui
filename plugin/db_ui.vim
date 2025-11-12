@@ -206,6 +206,12 @@ command! DBUIRefreshCompletionAll call db_ui#completion#clear_all_caches()
 command! DBUICompletionStatus call db_ui#completion#show_status()
 command! DBUICompletionDebug call db_ui#completion#toggle_debug()
 
+" Initialize IntelliSense completion module (ensures functions are available)
+if get(g:, 'db_ui_enable_intellisense', 1)
+  " Setup autocmds for IntelliSense
+  call db_ui#completion#setup_autocmds()
+endif
+
 " Native Neovim Test Suite (IntelliSense & Features)
 command! DBUITestFullSuite lua require('db_ui.tests.init').run_all()
 command! DBUITestIntellisense lua require('db_ui.tests.init').run_intellisense()

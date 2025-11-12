@@ -86,23 +86,51 @@ end
 function source:get_completions(ctx, callback)
   local bufnr = vim.api.nvim_get_current_buf()
 
+  -- DEBUG: Print that we're being called
+  print('[DBUI] get_completions called')
+
   -- Get database key name from buffer
   local db_key_name = vim.b[bufnr].dbui_db_key_name
+  print('[DBUI] db_key_name:', db_key_name or 'nil')
+
   if not db_key_name or db_key_name == '' then
+    print('[DBUI] No db_key_name, returning empty')
     callback({ context = ctx, is_incomplete_forward = false, is_incomplete_backward = false, items = {} })
     return function() end
   end
 
   -- Get current line and cursor position
-  local line = ctx.line
-  local col = ctx.cursor[2]
+  -- NOTE: ctx.line doesn't include the trigger character!
+  -- We need to get the actual line from the buffer
+  local actual_line = vim.api.nvim_buf_get_lines(bufnr, ctx.cursor[1] - 1, ctx.cursor[1], false)[1] or ''
 
-  -- Get cursor context using Phase 2 parser
-  local context = vim.fn['db_ui#completion#get_cursor_context'](bufnr, line, col)
+  -- ctx.cursor[2] is 0-indexed in Lua, but VimScript expects 1-indexed
+  -- Also, when triggered on '.', cursor is AFTER the dot, so we need to include it
+  local col = ctx.cursor[2] + 1  -- Convert to 1-indexed VimScript column
+
+  print('[DBUI] ctx.line:', ctx.line, 'col:', ctx.cursor[2], '(0-indexed)')
+  print('[DBUI] actual_line:', actual_line)
+  print('[DBUI] vim col:', col, '(1-indexed, for VimScript)')
+
+  -- Get cursor context using Phase 2 parser with actual line
+  local context = vim.fn['db_ui#completion#get_cursor_context'](bufnr, actual_line, col)
+  print('[DBUI] context type:', context.type or 'nil')
 
   -- Get completions based on context type
   -- Note: We don't pre-filter - blink.cmp handles filtering via filterText
   local items = self:get_items_for_context(db_key_name, context)
+  print('[DBUI] get_items_for_context returned', #items, 'items')
+
+  -- ADD TEST COMPLETION - Always include this for debugging
+  table.insert(items, 1, {
+    word = 'TEST_DBUI_COMPLETION',
+    kind = 'T',
+    object_type = 'test',
+    schema = 'test',
+    database = '',
+    info = '🧪 TEST: If you see this, blink.cmp source is working! Context type: ' .. (context.type or 'unknown'),
+  })
+  print('[DBUI] After adding test, total items:', #items)
 
   -- Transform to blink.cmp format
   local completion_items = {}
@@ -158,6 +186,12 @@ end
 ---@param context table
 ---@return table[]
 function source:get_column_items(db_key_name, context)
+  print('[DBUI] get_column_items called')
+  print('[DBUI]   context.alias:', context.alias or 'nil')
+  print('[DBUI]   context.table:', context.table or 'nil')
+  print('[DBUI]   context.schema:', context.schema or 'nil')
+  print('[DBUI]   context.database:', context.database or 'nil')
+
   local table_name = ''
   local external_db = nil
 
@@ -169,17 +203,27 @@ function source:get_column_items(db_key_name, context)
       external_db = alias_info.database ~= '' and alias_info.database or nil
     end
   elseif context.table and context.table ~= '' then
-    table_name = context.table
+    -- SSMS-style: Include schema in table name if provided
+    if context.schema and context.schema ~= '' then
+      table_name = context.schema .. '.' .. context.table
+    else
+      table_name = context.table
+    end
     external_db = context.database ~= '' and context.database or nil
   end
 
+  print('[DBUI]   resolved table_name:', table_name)
+  print('[DBUI]   resolved external_db:', external_db or 'nil')
+
   if table_name == '' then
+    print('[DBUI]   → No table name, returning empty')
     return {}
   end
 
   -- Get columns from cache
   local raw_columns
   if external_db then
+    print('[DBUI]   Fetching external DB columns...')
     -- External database columns (Phase 5 enhancement)
     raw_columns = vim.fn['db_ui#completion#get_external_completions'](
       db_key_name,
@@ -188,24 +232,48 @@ function source:get_column_items(db_key_name, context)
       table_name
     )
   else
+    print('[DBUI]   Fetching columns from current DB...')
     raw_columns = vim.fn['db_ui#completion#get_completions'](db_key_name, 'columns', table_name)
+  end
+
+  print('[DBUI]   raw_columns type:', type(raw_columns))
+  print('[DBUI]   raw_columns is table?:', type(raw_columns) == 'table')
+
+  if type(raw_columns) == 'table' then
+    -- Check if it's a Vim list (has numeric indices)
+    local count = 0
+    for k, v in pairs(raw_columns) do
+      print('[DBUI]     column[' .. tostring(k) .. '] =', vim.inspect(v))
+      count = count + 1
+      if count > 3 then break end  -- Only show first 3
+    end
+    print('[DBUI]   raw_columns count:', #raw_columns)
+  else
+    print('[DBUI]   raw_columns is not a table!')
   end
 
   -- Format items
   local items = {}
-  for _, col in ipairs(raw_columns) do
-    local item = {
-      word = col.name,
-      kind = 'C',
-      data_type = col.data_type,
-      nullable = col.nullable,
-      is_pk = col.is_pk,
-      is_fk = col.is_fk,
-      info = self:format_column_info(col),
-    }
-    table.insert(items, item)
+  if type(raw_columns) == 'table' then
+    for _, col in ipairs(raw_columns) do
+      if type(col) == 'table' and col.name then
+        local item = {
+          word = col.name,
+          kind = 'C',
+          data_type = col.data_type,
+          nullable = col.nullable,
+          is_pk = col.is_pk,
+          is_fk = col.is_fk,
+          info = self:format_column_info(col),
+        }
+        table.insert(items, item)
+      else
+        print('[DBUI]   Skipping invalid column:', vim.inspect(col))
+      end
+    end
   end
 
+  print('[DBUI]   Returning', #items, 'column items')
   return items
 end
 

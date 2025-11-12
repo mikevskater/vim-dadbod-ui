@@ -139,6 +139,12 @@ endfunction
 " Test 1: Verify connection exists
 function! s:test_01_verify_connection() abort
   try
+    " Initialize DBUI first
+    call db_ui#toggle()
+    sleep 100m
+    call db_ui#toggle()
+
+    " Now check connection
     let conn_info = db_ui#get_conn_info('sqlserver://localhost')
     let passed = !empty(conn_info)
     call s:print_result('Verify DBUI connection exists', passed, 'Connection object', passed ? 'Found' : 'Not found')
@@ -177,7 +183,7 @@ endfunction
 
 " Test 6: Verify completion module exists
 function! s:test_06_completion_module_exists() abort
-  let has_completion = exists('*db_ui#completion#get_hierarchical_context')
+  let has_completion = exists('*db_ui#completion#get_cursor_context')
   call s:print_result('Completion module loaded', has_completion, 'Function exists', has_completion ? 'Found' : 'Not found')
 endfunction
 
@@ -190,8 +196,8 @@ endfunction
 " Test 8: DBUI can open
 function! s:test_08_dbui_can_open() abort
   try
-    " Try to open DBUI
-    call db_ui#open()
+    " Try to open DBUI - db_ui#open() requires a 'mods' argument
+    call db_ui#toggle()
     sleep 500m
     let passed = &filetype ==# 'dbui'
     call s:print_result('DBUI can open', passed, 'dbui filetype', &filetype)
@@ -295,7 +301,7 @@ endfunction
 
 " Utility: Open DBUI and expand to synonyms
 function! OpenDBUIAndShowSynonyms() abort
-  call db_ui#open()
+  call db_ui#toggle()
   echo 'DBUI opened. Navigate to your server → vim_dadbod_test → SYNONYMS to view synonyms.'
 endfunction
 
