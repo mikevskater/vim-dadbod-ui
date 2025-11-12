@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "Read(//c/Users/ShiFt/AppData/Local/nvim-data/lazy/vim-dadbod-completion/**)",
+      "Read(//c/Users/ShiFt/AppData/Local/nvim/lua/myconfig/plugins/**)",
+      "Read(//c/Users/ShiFt/AppData/Local/nvim-data/lazy/vim-dadbod/autoload/**)",
+      "Bash(nvim --headless -c \"lua require(''''db_ui.tests.all_connections'''').run_specific(''''sqlserver'''')\" -c \"qa!\")"
     ],
     "deny": [],
     "ask": []
