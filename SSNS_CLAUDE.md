@@ -302,12 +302,16 @@ end
 
 ## Reference Implementation
 
-**VimScript version**: vim-dadbod-ui (main branch)
-- `autoload/db_ui.vim` - Tree structure reference
-- `autoload/db_ui/schemas.vim` - SQL query examples
-- `autoload/db_ui/drawer.vim` - UI rendering patterns
+**VimScript version**: vim-dadbod-ui
+- **Location**: `C:\Users\ShiFt\AppData\Local\nvim-data\lazy\vim-dadbod-ui`
+- **main branch** - Production UI implementation (reference for SQL queries and UI patterns)
+  - `autoload/db_ui.vim` - Tree structure reference
+  - `autoload/db_ui/schemas.vim` - SQL query examples
+  - `autoload/db_ui/drawer.vim` - UI rendering patterns
+- **IntelliSense branch** - Experimental completion work (reference for what NOT to do)
+  - See `INTELLISENSE_IMPLEMENTATION_GUIDE.md` for critical lessons learned
 
-**Convert to Lua, don't port directly!**
+**Convert to Lua, don't port directly!** Use the VimScript as reference for SQL queries and UI patterns, but write idiomatic Lua code.
 
 ## Testing Strategy
 

@@ -4,6 +4,14 @@
 
 This document captures the IntelliSense (auto-completion) implementation work done on the `vim-dadbod-ui` VimScript plugin on the **IntelliSense branch**. Use this as a reference when implementing IntelliSense for **SSNS** (SQL Server NeoVim Studio), the Lua-based rewrite.
 
+## Reference Codebase Location
+
+**vim-dadbod-ui**: `C:\Users\ShiFt\AppData\Local\nvim-data\lazy\vim-dadbod-ui`
+
+This repository contains:
+- **main branch**: Production VimScript implementation (reference for UI patterns and SQL queries)
+- **IntelliSense branch**: Experimental IntelliSense work (reference for critical bugs and lessons learned)
+
 ---
 
 ## What Was Implemented (VimScript Version)
